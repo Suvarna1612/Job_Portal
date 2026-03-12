@@ -18,7 +18,7 @@ const Hero = () => {
     <div className='container 2xl:px-20 mx-auto my-10 '>
       <div className='bg-gradient-to-r from-[#09203F] to-[#537895] text-white py-16 text-center mx-2 rounded-xl'>
         <h2 className='text-2xl md:text-3xl lg:text-4xl font-medium mb-4'>Over 10,000+ jobs to apply</h2>
-        <p className='mb-8 max-w-xl mx-auto text-sm font-light px-5'>Lorem ipsum dolor sit amet consectetur adipisicing elit. Velit corrupti dolorem, nam optio, esse voluptatem molestiae error aperiam sit iure mollitia debitis deleniti animi distinctio voluptatibus, qui quisquam doloremque aliquam!</p>
+        <p className='mb-8 max-w-xl mx-auto text-sm font-light px-5'>Discover your next career opportunity with ease. Explore thousands of jobs from top companies, apply seamlessly, and connect with employers looking for talented individuals ready to grow, innovate, and build a successful future.</p>
         <div className='flex items-center justify-between bg-white rounded text-gray-600 max-w-xl pl-4 ml-4 sm:mx-auto'>
             <div className='flex items-center '>
                 <img className='h-4 sm:h-5' src={assets.search_icon} alt="" />
