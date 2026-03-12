@@ -11,6 +11,9 @@ const ViewApplications = () => {
   const { backendUrl, companyToken } = useContext(AppContext)
 
   const [applicants, setApplicants] = useState(false)
+  const [filteredApplicants, setFilteredApplicants] = useState([])
+  const [selectedJob, setSelectedJob] = useState('All')
+  const [jobTitles, setJobTitles] = useState([])
 
   //function to fetch company job applications data
   const fetchCompanyJobApplications = async () => {
@@ -21,7 +24,15 @@ const ViewApplications = () => {
       )
 
       if (data.success) {
-        setApplicants(data.applications.reverse())
+        const applications = data.applications.reverse()
+        setApplicants(applications)
+        setFilteredApplicants(applications)
+        
+        // Extract unique job titles
+        const uniqueJobs = [...new Set(applications
+          .filter(app => app.jobId)
+          .map(app => app.jobId.title))]
+        setJobTitles(uniqueJobs)
       }
       else {
         toast.error(data.message)
@@ -31,6 +42,16 @@ const ViewApplications = () => {
       toast.error(error.message)
     }
 
+  }
+
+  // Filter applications by job title
+  const handleJobFilter = (jobTitle) => {
+    setSelectedJob(jobTitle)
+    if (jobTitle === 'All') {
+      setFilteredApplicants(applicants)
+    } else {
+      setFilteredApplicants(applicants.filter(app => app.jobId && app.jobId.title === jobTitle))
+    }
   }
 
   //function to update job application status
@@ -65,6 +86,34 @@ const ViewApplications = () => {
     </div>
   ) : (
     <div className='container mx-auto p-4'>
+      {/* Filter Section */}
+      <div className='mb-6 flex flex-wrap items-center gap-3'>
+        <label className='font-semibold text-gray-700'>Filter by Job Role:</label>
+        <select 
+          value={selectedJob}
+          onChange={(e) => handleJobFilter(e.target.value)}
+          className='px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500'
+        >
+          <option value='All'>All Jobs ({applicants.length})</option>
+          {jobTitles.map((title, index) => {
+            const count = applicants.filter(app => app.jobId && app.jobId.title === title).length
+            return (
+              <option key={index} value={title}>
+                {title} ({count})
+              </option>
+            )
+          })}
+        </select>
+        {selectedJob !== 'All' && (
+          <button 
+            onClick={() => handleJobFilter('All')}
+            className='text-blue-600 hover:text-blue-800 text-sm underline'
+          >
+            Clear Filter
+          </button>
+        )}
+      </div>
+
       <div>
         <table className='w-full max-w-4xl bg-white border border-gray-200 max-sm:text-sm'>
           <thead>
@@ -78,7 +127,7 @@ const ViewApplications = () => {
             </tr>
           </thead>
           <tbody>
-            {applicants.filter(item => item.jobId && item.userId).map((applicant, index) => (
+            {filteredApplicants.filter(item => item.jobId && item.userId).map((applicant, index) => (
               <tr key={index} className='text-gray-700'>
                 <td className='py-2 px-4 border-b text-center'>{index + 1}</td>
                 <td className='py-2 px-4 border-b text-center flex items-center'>

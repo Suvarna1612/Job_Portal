@@ -103,12 +103,12 @@ export const getCompanyData = async (req,res) => {
 // Post a new job
 export const postJob = async (req,res) =>{
 
-    const { title, description,location, salary,level, category} = req.body
+    const { title, description, location, salary, level, category, expiryDate, maxApplications } = req.body
 
     const companyId = req.company._id
 
     try {
-        const newJob = new Job({
+        const jobData = {
             title,
             description,
             location,
@@ -117,7 +117,17 @@ export const postJob = async (req,res) =>{
             date: Date.now(),
             level,
             category
-        })
+        }
+
+        // Add optional fields if provided
+        if (expiryDate) {
+            jobData.expiryDate = new Date(expiryDate)
+        }
+        if (maxApplications) {
+            jobData.maxApplications = parseInt(maxApplications)
+        }
+
+        const newJob = new Job(jobData)
 
         await newJob.save()
 

@@ -69,6 +69,16 @@ export const applyForJob = async (req, res) => {
             return res.json({ success: false, message: 'Job Not Found' })
         }
 
+        // Check if job has expired
+        if (jobData.expiryDate && new Date(jobData.expiryDate) < new Date()) {
+            return res.json({ success: false, message: 'This job posting has expired and is no longer accepting applications.' })
+        }
+
+        // Check if max applications reached
+        if (jobData.maxApplications && jobData.applicationCount >= jobData.maxApplications) {
+            return res.json({ success: false, message: 'This job has reached its maximum number of applications.' })
+        }
+
         const user = await User.findById(userId)
         if (!user.resume) {
             return res.json({ success: false, message: 'Please upload a resume in your profile before applying.' })
@@ -110,7 +120,7 @@ export const applyForJob = async (req, res) => {
             if (matchPercentage < 50) {
                 return res.json({
                     success: false,
-                    message: `Application Rejected: Your resume matched ${matchPercentage}% with the job description. A minimum of 50% is required.`
+                    message: `Unfortunately, your profile does not meet the necessary qualifications and skillset required for this position at this time.`
                 })
             }
         } catch (error) {
@@ -120,7 +130,7 @@ export const applyForJob = async (req, res) => {
                 return res.json({ success: false, message: 'Your resume is restricted by Cloudinary security. Please go to your profile, re-upload your resume, and try applying again.' })
             }
 
-            return res.json({ success: false, message: 'Error analyzing resume with AI. Please try again.' })
+            return res.json({ success: false, message: 'Error analyzing resume. Please try again.' })
         }
         // --- END SCORING ---
 
@@ -130,6 +140,9 @@ export const applyForJob = async (req, res) => {
             jobId,
             date: Date.now()
         })
+
+        // Increment application count for the job
+        await Job.findByIdAndUpdate(jobId, { $inc: { applicationCount: 1 } })
 
         res.json({ success: true, message: 'Applied Successfully' })
 

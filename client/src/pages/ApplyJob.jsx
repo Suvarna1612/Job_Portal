@@ -17,6 +17,10 @@ const ApplyJob = () => {
   const { getToken } = useAuth()
   const [JobData, setJobData] = useState(null);
   const [isAlreadyApplied, setIsAlreadyApplied] = useState(false)
+  const [showResumeOptions, setShowResumeOptions] = useState(false)
+  const [selectedResume, setSelectedResume] = useState(null)
+  const [useDefaultResume, setUseDefaultResume] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
   const navigate = useNavigate();
 
   const { jobs, backendUrl, userData, userApplications, fetchUserApplications } = useContext(AppContext);
@@ -39,27 +43,64 @@ const ApplyJob = () => {
       if(!userData){
         return toast.error("Please login to apply for this job");
       }
-      if(!userData.resume){
-        navigate('/applications')
-        return toast.error("Please upload your resume to apply for this job");
-      }
       
+      // If resume options modal is not shown yet, show it first
+      if(!showResumeOptions){
+        setShowResumeOptions(true)
+        return;
+      }
+
+      // If user wants to use default resume but doesn't have one
+      if(useDefaultResume && !userData.resume){
+        return toast.error("You don't have a default resume. Please upload one.");
+      }
+
+      // If user wants to use custom resume but hasn't selected one
+      if(!useDefaultResume && !selectedResume){
+        return toast.error("Please select a resume file");
+      }
+
+      setIsProcessing(true)
       const token = await getToken()
 
+      // If using custom resume, upload it first
+      if(!useDefaultResume && selectedResume){
+        toast.info("Uploading resume...")
+        const formData = new FormData()
+        formData.append('resume', selectedResume)
+        
+        const uploadResponse = await axios.post(backendUrl+'/api/users/update-resume',
+          formData,
+          {headers:{ Authorization : `Bearer ${token}`}}
+        )
+
+        if(!uploadResponse.data.success){
+          setIsProcessing(false)
+          return toast.error("Failed to upload resume")
+        }
+      }
+
+      toast.info("Analyzing resume...")
       const {data} = await axios.post(backendUrl+'/api/users/apply',
         {jobId: JobData._id},
         {headers: {Authorization: `Bearer ${token}`}}
       )
 
+      setIsProcessing(false)
+
       if(data.success){
         toast.success(data.message)
         fetchUserApplications()
+        setShowResumeOptions(false)
+        setSelectedResume(null)
+        setUseDefaultResume(true)
       }
       else{
         toast.error(data.message)
       }
 
     } catch (error) {
+      setIsProcessing(false)
       toast.error(error.message)
     }
   }
@@ -126,6 +167,113 @@ const ApplyJob = () => {
               </p>
             </div>
           </div>
+
+          {/* Resume Selection Modal */}
+          {showResumeOptions && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4">Choose Resume to Apply</h3>
+              
+              {userData.resume ? (
+                <div className="mb-4">
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-white bg-white">
+                    <input
+                      type="radio"
+                      name="resumeChoice"
+                      checked={useDefaultResume}
+                      onChange={() => {
+                        setUseDefaultResume(true)
+                        setSelectedResume(null)
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">Use Default Resume</p>
+                      <a
+                        href={userData.resume}
+                        target="_blank"
+                        className="text-sm text-blue-600 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View current resume
+                      </a>
+                    </div>
+                  </label>
+                </div>
+              ) : (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    You don't have a default resume yet. Upload one below or go to your Profile to set a default resume.
+                  </p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-white bg-white">
+                  <input
+                    type="radio"
+                    name="resumeChoice"
+                    checked={!useDefaultResume}
+                    onChange={() => setUseDefaultResume(false)}
+                    className="w-4 h-4"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium">Upload Different Resume</p>
+                    <p className="text-sm text-gray-600">Choose a specific resume for this job</p>
+                  </div>
+                </label>
+              </div>
+
+              {!useDefaultResume && (
+                <div className="ml-7 mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="bg-white border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">
+                      {selectedResume ? selectedResume.name : 'Select PDF file'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => setSelectedResume(e.target.files[0])}
+                      className="hidden"
+                    />
+                    <img src={assets.profile_upload_icon} alt="" className="w-5 h-5" />
+                  </label>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={applyHandler}
+                  disabled={isProcessing}
+                  className={`${
+                    isProcessing 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } text-white px-6 py-2 rounded-lg flex items-center gap-2`}
+                >
+                  {isProcessing && (
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  {isProcessing ? 'Processing...' : 'Submit Application'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowResumeOptions(false)
+                    setSelectedResume(null)
+                    setUseDefaultResume(true)
+                  }}
+                  disabled={isProcessing}
+                  className={`border border-gray-300 px-6 py-2 rounded-lg ${
+                    isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col lg:flex-row justify-between items-start">
             <div className="w-full lg:w-2/3">
               <h2 className="font-bold text-2xl mb-4">Job Description</h2>

@@ -63,22 +63,48 @@ const ManageJobs = () => {
               <th className='py-2 px-4 border-b text-left max-sm:hidden'>Date</th>
               <th className='py-2 px-4 border-b text-left max-sm:hidden'>Location</th>
               <th className='py-2 px-4 border-b text-center'>Applicants</th>
+              <th className='py-2 px-4 border-b text-left max-sm:hidden'>Status</th>
               <th className='py-2 px-4 border-b text-left'>Visible</th>
             </tr>
           </thead>
           <tbody>
-            {jobs.map((job, index) => (
-              <tr key={index} className='text-gray-700'>
-                <td className='py-2 px-4 border-b max-sm:hidden'>{index + 1}</td>
-                <td className='py-2 px-4 border-b '>{job.title}</td>
-                <td className='py-2 px-4 border-b max-sm:hidden'>{moment(job.date).format('ll')}</td>
-                <td className='py-2 px-4 border-b max-sm:hidden'>{job.location}</td>
-                <td className='py-2 px-4 border-b text-center'>{job.applicants}</td>
-                <td className='py-2 px-4 border-b '>
-                  <input onChange={() => changeJobVisibility(job._id)} className='scale-125 ml-4' type="checkbox" checked={job.visible} />
-                </td>
-              </tr>
-            ))}
+            {jobs.map((job, index) => {
+              const isExpired = job.expiryDate && new Date(job.expiryDate) < new Date()
+              const isMaxReached = job.maxApplications && job.applicationCount >= job.maxApplications
+              
+              return (
+                <tr key={index} className='text-gray-700'>
+                  <td className='py-2 px-4 border-b max-sm:hidden'>{index + 1}</td>
+                  <td className='py-2 px-4 border-b '>{job.title}</td>
+                  <td className='py-2 px-4 border-b max-sm:hidden'>{moment(job.date).format('ll')}</td>
+                  <td className='py-2 px-4 border-b max-sm:hidden'>{job.location}</td>
+                  <td className='py-2 px-4 border-b text-center'>
+                    {job.applicationCount || job.applicants}
+                    {job.maxApplications && ` / ${job.maxApplications}`}
+                  </td>
+                  <td className='py-2 px-4 border-b max-sm:hidden'>
+                    {isExpired ? (
+                      <span className='text-red-600 text-xs'>Expired</span>
+                    ) : isMaxReached ? (
+                      <span className='text-orange-600 text-xs'>Limit Reached</span>
+                    ) : job.expiryDate ? (
+                      <span className='text-green-600 text-xs'>Expires {moment(job.expiryDate).format('ll')}</span>
+                    ) : (
+                      <span className='text-gray-500 text-xs'>Active</span>
+                    )}
+                  </td>
+                  <td className='py-2 px-4 border-b '>
+                    <input 
+                      onChange={() => changeJobVisibility(job._id)} 
+                      className='scale-125 ml-4' 
+                      type="checkbox" 
+                      checked={job.visible}
+                      disabled={isExpired || isMaxReached}
+                    />
+                  </td>
+                </tr>
+              )
+            })}
 
           </tbody>
         </table>

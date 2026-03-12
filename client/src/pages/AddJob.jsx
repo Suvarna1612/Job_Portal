@@ -12,6 +12,10 @@ const AddJob = () => {
     const [category, setCategory] = useState('Programming')
     const [level, setLevel] = useState('Beginner level')
     const [salary, setSalary] = useState(0)
+    const [expiryDate, setExpiryDate] = useState('')
+    const [maxApplications, setMaxApplications] = useState('')
+    const [useExpiryDate, setUseExpiryDate] = useState(false)
+    const [useMaxApplications, setUseMaxApplications] = useState(false)
     const {backendUrl, companyToken} = useContext(AppContext)
 
     const editorRef = useRef(null)
@@ -21,14 +25,36 @@ const AddJob = () => {
         e.preventDefault()
         try {
             const description = quillRef.current.root.innerHTML
+            
+            const jobData = {
+                title, 
+                description, 
+                location, 
+                salary, 
+                category, 
+                level
+            }
+
+            // Add optional fields only if enabled
+            if (useExpiryDate && expiryDate) {
+                jobData.expiryDate = expiryDate
+            }
+            if (useMaxApplications && maxApplications) {
+                jobData.maxApplications = parseInt(maxApplications)
+            }
+
             const {data} = await axios.post(backendUrl + '/api/company/post-job',
-                {title, description, location, salary, category, level},
+                jobData,
                 {headers:{token: companyToken}}
             ) 
             if(data.success){
                 toast.success(data.message)
                 setTitle('')
                 setSalary(0)
+                setExpiryDate('')
+                setMaxApplications('')
+                setUseExpiryDate(false)
+                setUseMaxApplications(false)
                 quillRef.current.root.innerHTML = '' 
 
             }else{
@@ -98,6 +124,61 @@ const AddJob = () => {
             <p className='mb-2'>Job Salary</p>
             <input min={0} className='w-full px-3 py-2 border-2 border-gray-300 rounded sm:w-[120px]' onChange={e => setSalary(e.target.value)} type="Number" placeholder='2500' />
         </div>
+
+        {/* Job Availability Options */}
+        <div className='w-full max-w-lg border-2 border-gray-200 rounded p-4 mt-4'>
+            <p className='font-semibold mb-3'>Job Availability Settings (Optional)</p>
+            
+            {/* Expiry Date Option */}
+            <div className='mb-4'>
+                <label className='flex items-center gap-2 mb-2'>
+                    <input 
+                        type='checkbox' 
+                        checked={useExpiryDate}
+                        onChange={(e) => setUseExpiryDate(e.target.checked)}
+                        className='w-4 h-4'
+                    />
+                    <span>Set job expiry date</span>
+                </label>
+                {useExpiryDate && (
+                    <input 
+                        type='date' 
+                        value={expiryDate}
+                        onChange={(e) => setExpiryDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className='w-full px-3 py-2 border-2 border-gray-300 rounded'
+                        required={useExpiryDate}
+                    />
+                )}
+                <p className='text-sm text-gray-500 mt-1'>Job will automatically become invisible after this date</p>
+            </div>
+
+            {/* Max Applications Option */}
+            <div>
+                <label className='flex items-center gap-2 mb-2'>
+                    <input 
+                        type='checkbox' 
+                        checked={useMaxApplications}
+                        onChange={(e) => setUseMaxApplications(e.target.checked)}
+                        className='w-4 h-4'
+                    />
+                    <span>Limit number of applications</span>
+                </label>
+                {useMaxApplications && (
+                    <input 
+                        type='number' 
+                        value={maxApplications}
+                        onChange={(e) => setMaxApplications(e.target.value)}
+                        min={1}
+                        placeholder='e.g., 50'
+                        className='w-full px-3 py-2 border-2 border-gray-300 rounded sm:w-[200px]'
+                        required={useMaxApplications}
+                    />
+                )}
+                <p className='text-sm text-gray-500 mt-1'>Job will automatically become invisible after reaching this number</p>
+            </div>
+        </div>
+
         <button className='w-28 py-3 mt-4 bg-black text-white rounded'>Add</button>
     </form>
   )

@@ -3,6 +3,7 @@ import {assets} from "../assets/assets"
 import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
 import {Link, useNavigate} from 'react-router-dom'
 import { AppContext } from '../context/AppContext'
+
 const Navbar = () => {
 
     const {openSignIn} = useClerk()
@@ -19,7 +20,15 @@ const Navbar = () => {
                 <Link to={'/applications'}>Applied Jobs</Link>
                 <p>|</p>
                 <p className='max-sm:hidden'>Hi, {user.firstName+" "+user.lastName}</p>
-                <UserButton/>
+                <UserButton>
+                  <UserButton.MenuItems>
+                    <UserButton.Link
+                      label="Profile"
+                      labelIcon={<img src={assets.person_icon} alt="" className="w-4 h-4" />}
+                      href="/profile"
+                    />
+                  </UserButton.MenuItems>
+                </UserButton>
               </div>
               :<div className='flex gap-4 max-sm:text-xs'>
                 <button onClick={e => setShowRecruiterLogin(true)} className='text-gray-600 cursor-pointer'>Recruiter Login</button>

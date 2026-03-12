@@ -10,6 +10,9 @@ const jobSchema = new mongoose.Schema({
     date: {type:Number, required:true},
     visible: {type:Boolean, default:true},
     companyId: {type:mongoose.Schema.Types.ObjectId, ref:'Company', required:true},
+    expiryDate: {type:Date, default:null}, // Optional: Job expiry date
+    maxApplications: {type:Number, default:null}, // Optional: Maximum number of applications
+    applicationCount: {type:Number, default:0}, // Track number of applications received
 })
 
 
