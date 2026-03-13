@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import ApplyJob from './pages/ApplyJob'
 import Applications from './pages/Applications'
 import Profile from './pages/Profile'
+import PrepareInterview from './pages/PrepareInterview'
 import RecruiterLogin from './components/RecruiterLogin'
 import { AppContext } from './context/AppContext'
 import Dashboard from './pages/Dashboard'
@@ -27,6 +28,7 @@ const App = () => {
         <Route path='/apply-job/:id' element={<ApplyJob />} />
         <Route path='/applications' element={<Applications />} />
         <Route path='/profile' element={<Profile />} />
+        <Route path='/prepare-interview/:id' element={<PrepareInterview />} />
         
         <Route path='/dashboard' element={
           <PrivateRoute>

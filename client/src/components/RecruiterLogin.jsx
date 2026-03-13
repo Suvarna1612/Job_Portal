@@ -11,6 +11,7 @@ const RecruiterLogin = () => {
     const [name,setName] = useState('')
     const [password,setPassword] = useState('')
     const [email,setEmail] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
 
     const [image,setImage] = useState(false)
 
@@ -107,7 +108,21 @@ const RecruiterLogin = () => {
                 </div>
                 <div className='border px-4 py-2 flex items-center gap-2 rounded-full mt-5'>
                     <img src={assets.lock_icon} alt="" />
-                    <input className='outline-none text-sm' onChange={e=> setPassword(e.target.value)} value={password} type="password" placeholder='Password' required/>
+                    <input 
+                        className='outline-none text-sm flex-1' 
+                        onChange={e=> setPassword(e.target.value)} 
+                        value={password} 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder='Password' 
+                        required
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-gray-500 hover:text-gray-700 text-sm"
+                    >
+                        {showPassword ? "Hide" : "Show"}
+                    </button>
                 </div>
 
                 

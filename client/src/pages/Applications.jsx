@@ -5,10 +5,12 @@ import moment from 'moment'
 import Footer from '../components/Footer'
 import { AppContext } from '../context/AppContext'
 import { useUser } from '@clerk/clerk-react'
+import { useNavigate } from 'react-router-dom'
 
 const Applications = () => {
 
   const { user } = useUser()
+  const navigate = useNavigate()
 
   const {userApplications, fetchUserApplications} = useContext(AppContext)
 
@@ -31,6 +33,7 @@ const Applications = () => {
               <th className='py-3 px-4 border-b text-left max-sm:hidden'>Location</th>
               <th className='py-3 px-4 border-b text-left max-sm:hidden'>Date</th>
               <th className='py-3 px-4 border-b text-left '>Status</th>
+              <th className='py-3 px-4 border-b text-left '>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -47,6 +50,16 @@ const Applications = () => {
                   <span className={`${job.status === 'Accepted' ? 'bg-green-100' : job.status === 'Rejected' ? 'bg-red-100' : 'bg-blue-100'} px-4 py-1.5 rounded font-semibold`}>
                     {job.status}
                   </span>
+                </td>
+                <td className='px-4 py-2 border-b'>
+                  {job.status === 'Accepted' && (
+                    <button
+                      onClick={() => navigate(`/prepare-interview/${job._id}`)}
+                      className='bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 text-sm'
+                    >
+                      Prepare for Job
+                    </button>
+                  )}
                 </td>
               </tr>
             ) : (null))}

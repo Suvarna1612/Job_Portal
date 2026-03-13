@@ -11,6 +11,8 @@ const JobListing = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCategories, setSelectedCategories] = useState([])
     const [selectedLocations, setSelectedLocations] = useState([])
+    const [selectedCompanies, setSelectedCompanies] = useState([])
+    const [companies, setCompanies] = useState([])
 
     const [filteredJobs, setFilteredJobs] = useState(jobs)
 
@@ -24,23 +26,36 @@ const JobListing = () => {
             prev => prev.includes(location) ? prev.filter(c => c !== location) : [...prev, location]
         )
     }
+    const handleCompanyChange = (company) => {
+        setSelectedCompanies(
+            prev => prev.includes(company) ? prev.filter(c => c !== company) : [...prev, company]
+        )
+    }
+
+    // Extract unique companies from jobs
+    useEffect(() => {
+        const uniqueCompanies = [...new Set(jobs.map(job => job.companyId?.name).filter(Boolean))]
+        setCompanies(uniqueCompanies.sort())
+    }, [jobs])
 
     useEffect(()=>{
         const matchesCategory = job => selectedCategories.length === 0 || selectedCategories.includes(job.category)
         
         const matchesLocation = job => selectedLocations.length === 0 || selectedLocations.includes(job.location)
         
+        const matchesCompany = job => selectedCompanies.length === 0 || selectedCompanies.includes(job.companyId?.name)
+        
         const matchesTitle = job => searchFilter.title === "" || job.title.toLowerCase().includes(searchFilter.title.toLowerCase())
         
         const matchesSearchLocation = job => searchFilter.location === "" || job.location.toLowerCase().includes(searchFilter.location.toLowerCase())
 
         const newFilteredJobs = jobs.slice().reverse().filter(
-            job => matchesCategory(job) && matchesLocation(job) && matchesTitle(job) && matchesSearchLocation(job)
+            job => matchesCategory(job) && matchesLocation(job) && matchesCompany(job) && matchesTitle(job) && matchesSearchLocation(job)
         )
 
         setFilteredJobs(newFilteredJobs)
         setCurrentPage(1)
-    },[jobs,selectedCategories,selectedLocations,searchFilter])
+    },[jobs,selectedCategories,selectedLocations,selectedCompanies,searchFilter])
     return (
         <div className='container 2xl:px-20 mx-auto flex flex-col lg:flex-row max-lg:space-y-8 py-8 '>
             {/* Side Bar */}
@@ -105,6 +120,25 @@ const JobListing = () => {
                                         checked={selectedLocations.includes(location)}
                                     />
                                     {location}
+                                </li>
+                            ))
+                        }
+                    </ul>
+                </div>
+                {/* Company Filter */}
+                <div className={showFilter ? "" : "max-lg:hidden"}>
+                    <h4 className='font-medium text-lg py-4 pt-14'>Search By Company</h4>
+                    <ul className='space-y-4 text-gray-600 max-h-72 overflow-y-auto pr-2 pl-1'>
+                        {
+                            companies.map((company, index) => (
+                                <li className='flex gap-3 items-start' key={index}>
+                                    <input
+                                        className='scale-125 cursor-pointer mt-1 flex-shrink-0'
+                                        type="checkbox"
+                                        onChange={() => handleCompanyChange(company)}
+                                        checked={selectedCompanies.includes(company)}
+                                    />
+                                    <span className='break-words'>{company}</span>
                                 </li>
                             ))
                         }

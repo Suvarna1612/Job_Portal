@@ -21,6 +21,7 @@ const ApplyJob = () => {
   const [selectedResume, setSelectedResume] = useState(null)
   const [useDefaultResume, setUseDefaultResume] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [learningSuggestions, setLearningSuggestions] = useState(null)
   const navigate = useNavigate();
 
   const { jobs, backendUrl, userData, userApplications, fetchUserApplications } = useContext(AppContext);
@@ -94,9 +95,14 @@ const ApplyJob = () => {
         setShowResumeOptions(false)
         setSelectedResume(null)
         setUseDefaultResume(true)
+        setLearningSuggestions(null)
       }
       else{
         toast.error(data.message)
+        // Show learning suggestions if available
+        if(data.suggestions){
+          setLearningSuggestions(data.suggestions)
+        }
       }
 
     } catch (error) {
@@ -108,7 +114,11 @@ const ApplyJob = () => {
   const checkAlreadyApplied = () => {
     const hasApplied = userApplications.some(item => item.jobId._id === JobData._id)
     setIsAlreadyApplied(hasApplied)
+  }
 
+  // Get the application details for this job
+  const getApplicationForJob = () => {
+    return userApplications.find(item => item.jobId._id === JobData._id)
   }
 
   useEffect(() => {
@@ -159,9 +169,28 @@ const ApplyJob = () => {
             </div>
 
             <div className="flex flex-col justify-center text-end text-sm max-md:mx-auto max-md:text-center">
-              <button onClick={applyHandler} className="bg-blue-600 p-2.5 px-10 text-white rounded ">
-                {isAlreadyApplied ? 'Already Applied' : 'Apply Now'}
-              </button>
+              {(() => {
+                const application = getApplicationForJob()
+                if (application && application.status === 'Accepted') {
+                  return (
+                    <div className="space-y-2">
+                      <button 
+                        onClick={() => navigate(`/prepare-interview/${application._id}`)}
+                        className="bg-green-600 p-2.5 px-10 text-white rounded hover:bg-green-700"
+                      >
+                        Prepare for Job
+                      </button>
+                      <p className="text-green-600 font-medium">Application Accepted!</p>
+                    </div>
+                  )
+                } else {
+                  return (
+                    <button onClick={applyHandler} className="bg-blue-600 p-2.5 px-10 text-white rounded ">
+                      {isAlreadyApplied ? 'Already Applied' : 'Apply Now'}
+                    </button>
+                  )
+                }
+              })()}
               <p className="mt-1 text-gray-600 ">
                 Posted {moment(JobData.date).fromNow()}
               </p>
@@ -274,6 +303,65 @@ const ApplyJob = () => {
               </div>
             </div>
           )}
+
+          {/* Learning Suggestions */}
+          {learningSuggestions && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-semibold text-orange-800">
+                  💡 Learning Suggestions to Improve Your Profile
+                </h3>
+                <button
+                  onClick={() => setLearningSuggestions(null)}
+                  className="text-orange-600 hover:text-orange-800"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <p className="text-orange-700 mb-4">
+                Based on the job requirements, here are specific areas you can focus on to become eligible for this role:
+              </p>
+
+              <div className="space-y-4">
+                {learningSuggestions.map((suggestion, index) => (
+                  <div key={index} className="bg-white border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-orange-100 text-orange-600 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-800 mb-1">
+                          {suggestion.category}: {suggestion.title}
+                        </h4>
+                        <p className="text-gray-600 text-sm mb-2">
+                          {suggestion.description}
+                        </p>
+                        {suggestion.resources && suggestion.resources.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-gray-700">Recommended Resources:</span>
+                            <ul className="text-xs text-blue-600 mt-1">
+                              {suggestion.resources.map((resource, idx) => (
+                                <li key={idx} className="ml-2">• {resource}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm text-blue-800">
+                  💪 <strong>Pro Tip:</strong> Focus on 2-3 suggestions at a time, build projects to demonstrate your skills, 
+                  and update your resume before applying again!
+                </p>
+              </div>
+            </div>
+          )}
+          
           <div className="flex flex-col lg:flex-row justify-between items-start">
             <div className="w-full lg:w-2/3">
               <h2 className="font-bold text-2xl mb-4">Job Description</h2>
@@ -281,9 +369,25 @@ const ApplyJob = () => {
                 className="rich-text"
                 dangerouslySetInnerHTML={{ __html: JobData.description }}
               ></div>
-              <button onClick={applyHandler} className="bg-blue-600 p-2.5 px-10 text-white rounded mt-10">
-                {isAlreadyApplied ? 'Already Applied' : 'Apply Now'}
-              </button>
+              {(() => {
+                const application = getApplicationForJob()
+                if (application && application.status === 'Accepted') {
+                  return (
+                    <button 
+                      onClick={() => navigate(`/prepare-interview/${application._id}`)}
+                      className="bg-green-600 p-2.5 px-10 text-white rounded mt-10 hover:bg-green-700"
+                    >
+                      Prepare for Job
+                    </button>
+                  )
+                } else {
+                  return (
+                    <button onClick={applyHandler} className="bg-blue-600 p-2.5 px-10 text-white rounded mt-10">
+                      {isAlreadyApplied ? 'Already Applied' : 'Apply Now'}
+                    </button>
+                  )
+                }
+              })()}
             </div>
             {/* Right Section More Jobs */}
             <div className="w-full lg:w-1/3 mt-8 lg:mt-0 lg:ml-8 space-y-5">

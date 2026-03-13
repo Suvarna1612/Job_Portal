@@ -118,10 +118,54 @@ export const applyForJob = async (req, res) => {
             const matchPercentage = scoreData.matchPercentage
 
             if (matchPercentage < 50) {
-                return res.json({
-                    success: false,
-                    message: `Unfortunately, your profile does not meet the necessary qualifications and skillset required for this position at this time.`
-                })
+                // Generate learning suggestions using Gemini
+                try {
+                    const suggestionPrompt = `Based on the following job description and resume analysis, provide specific learning suggestions to help the candidate become eligible for this role.
+
+Job Title: ${jobData.title}
+Job Description: ${jobData.description}
+Resume Content: ${resumeText}
+Match Percentage: ${matchPercentage}%
+
+Provide 5-7 specific, actionable learning suggestions including:
+1. Technical skills to develop
+2. Certifications to pursue
+3. Online courses or platforms to use
+4. Projects to build
+5. Experience areas to focus on
+
+Format as a JSON object with this structure:
+{
+  "suggestions": [
+    {
+      "category": "Technical Skills",
+      "title": "Learn [Specific Technology]",
+      "description": "Brief description of why this is important",
+      "resources": ["Resource 1", "Resource 2"]
+    }
+  ]
+}
+
+Provide ONLY the JSON response, no other text.`
+
+                    const suggestionResult = await model.generateContent(suggestionPrompt)
+                    const suggestionText = suggestionResult.response.text()
+                    const cleanSuggestionJson = suggestionText.replace(/```json/gi, '').replace(/```/g, '').trim()
+                    const suggestions = JSON.parse(cleanSuggestionJson)
+
+                    return res.json({
+                        success: false,
+                        message: `Unfortunately, your profile does not meet the necessary qualifications and skillset required for this position at this time.`,
+                        matchPercentage,
+                        suggestions: suggestions.suggestions
+                    })
+                } catch (suggestionError) {
+                    console.error("Suggestion generation error:", suggestionError)
+                    return res.json({
+                        success: false,
+                        message: `Unfortunately, your profile does not meet the necessary qualifications and skillset required for this position at this time.`
+                    })
+                }
             }
         } catch (error) {
             console.error("Resume scoring error:", error)
@@ -175,6 +219,119 @@ export const getUserJobApplications = async (req, res) => {
         res.json({ success: false, message: error.message })
     }
 
+}
+
+// Get single application by ID
+export const getApplicationById = async (req, res) => {
+    try {
+        const { userId } = getAuth(req)
+        const { id } = req.params
+
+        const application = await JobApplication.findOne({ _id: id, userId })
+            .populate('companyId', 'name email image')
+            .populate('jobId', 'title description location category level salary companyId')
+            .exec()
+
+        if (!application) {
+            return res.json({ success: false, message: 'Application not found' })
+        }
+
+        return res.json({ success: true, application })
+    } catch (error) {
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// Generate interview question
+export const generateInterviewQuestion = async (req, res) => {
+    try {
+        const { userId } = getAuth(req)
+        const { jobId, questionNumber } = req.body
+
+        if (!process.env.GEMINI_API_KEY) {
+            return res.json({ success: false, message: 'AI service not configured' })
+        }
+
+        const jobData = await Job.findById(jobId)
+        if (!jobData) {
+            return res.json({ success: false, message: 'Job not found' })
+        }
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
+
+        const prompt = `You are an expert interviewer. Based on the following job description, generate a relevant interview question.
+        
+Job Title: ${jobData.title}
+Job Description: ${jobData.description}
+Question Number: ${questionNumber}
+
+Generate a ${questionNumber === 1 ? 'basic' : questionNumber <= 3 ? 'intermediate' : 'advanced'} level interview question that tests the candidate's knowledge and skills for this role. 
+
+Provide ONLY the question text, nothing else.`
+
+        const result = await model.generateContent(prompt)
+        const question = result.response.text().trim()
+
+        return res.json({ success: true, question })
+    } catch (error) {
+        console.error("Question generation error:", error)
+        res.json({ success: false, message: 'Error generating question. Please try again.' })
+    }
+}
+
+// Evaluate interview answer
+export const evaluateInterviewAnswer = async (req, res) => {
+    try {
+        const { userId } = getAuth(req)
+        const { jobId, question, answer } = req.body
+
+        if (!process.env.GEMINI_API_KEY) {
+            return res.json({ success: false, message: 'AI service not configured' })
+        }
+
+        const jobData = await Job.findById(jobId)
+        if (!jobData) {
+            return res.json({ success: false, message: 'Job not found' })
+        }
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
+
+        const prompt = `You are an expert interviewer evaluating a candidate's answer.
+
+Job Title: ${jobData.title}
+Job Description: ${jobData.description}
+
+Interview Question: ${question}
+
+Candidate's Answer: ${answer}
+
+Evaluate this answer and provide:
+1. A score from 1-10
+2. Detailed feedback on what was good and what could be improved
+3. Suggestions for a better answer
+
+Respond ONLY in JSON format with this structure:
+{
+  "score": <number 1-10>,
+  "feedback": "<detailed feedback>",
+  "suggestions": "<suggestions for improvement>"
+}
+
+Do not include any other text or explanation outside the JSON.`
+
+        const result = await model.generateContent(prompt)
+        const responseText = result.response.text()
+
+        const cleanJsonText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
+        const evaluation = JSON.parse(cleanJsonText)
+
+        return res.json({ success: true, evaluation })
+    } catch (error) {
+        console.error("Answer evaluation error:", error)
+        res.json({ success: false, message: 'Error evaluating answer. Please try again.' })
+    }
 }
 
 // Update user profile (resume)
