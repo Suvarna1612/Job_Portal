@@ -2,6 +2,7 @@ import express from'express'
 import { getCompanyPostedJobs,getCompanyJobApplicants,postJob,getCompanyData,loginCompany,registerCompany, changeJobApplicationStatus, changeVisibility } from '../controllers/companyController.js'
 import upload from '../config/multer.js'
 import { protectCompany } from '../middleware/authMiddleware.js'
+import axios from 'axios'
 
 const router = express.Router()
 
@@ -28,5 +29,20 @@ router.post('/change-status',protectCompany,changeJobApplicationStatus)
 
 //Change Application visiblity
 router.post('/change-visibility',protectCompany,changeVisibility)
+
+// Proxy resume PDF so browser can view it inline (no auth needed - URL is already secured by Cloudinary)
+router.get('/resume-proxy', async (req, res) => {
+    try {
+        const { url } = req.query
+        if (!url) return res.status(400).json({ success: false, message: 'URL required' })
+
+        const response = await axios.get(decodeURIComponent(url), { responseType: 'arraybuffer' })
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader('Content-Disposition', 'inline; filename="resume.pdf"')
+        res.send(Buffer.from(response.data))
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Failed to load resume' })
+    }
+})
 
 export default router

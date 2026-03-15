@@ -52,14 +52,12 @@ const Applications = () => {
                   </span>
                 </td>
                 <td className='px-4 py-2 border-b'>
-                  {job.status === 'Accepted' && (
-                    <button
-                      onClick={() => navigate(`/prepare-interview/${job._id}`)}
-                      className='bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 text-sm'
-                    >
-                      Prepare for Job
-                    </button>
-                  )}
+                  <button
+                    onClick={() => navigate(`/prepare-interview/${job._id}`)}
+                    className='bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 text-sm'
+                  >
+                    Prepare Interview
+                  </button>
                 </td>
               </tr>
             ) : (null))}

@@ -5,6 +5,7 @@ import User from "../models/User.js"
 import { v2 as cloudinary } from "cloudinary"
 import axios from 'axios'
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { sendApplicationConfirmation } from "../utils/sendEmail.js"
 
 // Get user data 
 export const getUserData = async (req, res) => {
@@ -188,6 +189,27 @@ Provide ONLY the JSON response, no other text.`
         // Increment application count for the job
         await Job.findByIdAndUpdate(jobId, { $inc: { applicationCount: 1 } })
 
+        // Send confirmation email to user
+        try {
+            const populatedJob = await Job.findById(jobId).populate('companyId', 'name')
+            const companyName = populatedJob.companyId.name
+
+            console.log(`📧 Sending confirmation email to: ${user.email} | Job: ${jobData.title} | Company: ${companyName}`)
+
+            const emailResult = await sendApplicationConfirmation(
+                user.email,
+                user.name,
+                jobData.title,
+                companyName
+            )
+
+            if (!emailResult.success) {
+                console.error('❌ Email failed:', emailResult.error)
+            }
+        } catch (emailError) {
+            console.error('❌ Error sending confirmation email:', emailError.message)
+        }
+
         res.json({ success: true, message: 'Applied Successfully' })
 
     } catch (error) {
@@ -242,11 +264,33 @@ export const getApplicationById = async (req, res) => {
     }
 }
 
+// Helper: try Gemini with multiple fallback models
+const geminiGenerate = async (prompt) => {
+    const models = ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.5-flash']
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    let lastError
+    for (const modelName of models) {
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName })
+            const result = await model.generateContent(prompt)
+            console.log(`✅ Gemini responded using model: ${modelName}`)
+            return result.response.text()
+        } catch (err) {
+            console.warn(`⚠️ Model ${modelName} failed: ${err.message}`)
+            lastError = err
+        }
+    }
+    throw lastError
+}
+
 // Generate interview question
 export const generateInterviewQuestion = async (req, res) => {
     try {
-        const { userId } = getAuth(req)
         const { jobId, questionNumber } = req.body
+
+        if (!jobId || !questionNumber) {
+            return res.json({ success: false, message: 'jobId and questionNumber are required.' })
+        }
 
         if (!process.env.GEMINI_API_KEY) {
             return res.json({ success: false, message: 'AI service not configured' })
@@ -257,34 +301,34 @@ export const generateInterviewQuestion = async (req, res) => {
             return res.json({ success: false, message: 'Job not found' })
         }
 
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
-
+        const level = questionNumber === 1 ? 'basic' : questionNumber <= 3 ? 'intermediate' : 'advanced'
         const prompt = `You are an expert interviewer. Based on the following job description, generate a relevant interview question.
-        
+
 Job Title: ${jobData.title}
 Job Description: ${jobData.description}
 Question Number: ${questionNumber}
 
-Generate a ${questionNumber === 1 ? 'basic' : questionNumber <= 3 ? 'intermediate' : 'advanced'} level interview question that tests the candidate's knowledge and skills for this role. 
+Generate a ${level} level interview question that tests the candidate's knowledge and skills for this role.
 
 Provide ONLY the question text, nothing else.`
 
-        const result = await model.generateContent(prompt)
-        const question = result.response.text().trim()
+        const question = await geminiGenerate(prompt)
+        return res.json({ success: true, question: question.trim() })
 
-        return res.json({ success: true, question })
     } catch (error) {
-        console.error("Question generation error:", error)
-        res.json({ success: false, message: 'Error generating question. Please try again.' })
+        console.error("Question generation error:", error.message)
+        res.json({ success: false, message: error.message || 'Error generating question. Please try again.' })
     }
 }
 
 // Evaluate interview answer
 export const evaluateInterviewAnswer = async (req, res) => {
     try {
-        const { userId } = getAuth(req)
         const { jobId, question, answer } = req.body
+
+        if (!jobId || !question || !answer) {
+            return res.json({ success: false, message: 'jobId, question, and answer are required.' })
+        }
 
         if (!process.env.GEMINI_API_KEY) {
             return res.json({ success: false, message: 'AI service not configured' })
@@ -294,9 +338,6 @@ export const evaluateInterviewAnswer = async (req, res) => {
         if (!jobData) {
             return res.json({ success: false, message: 'Job not found' })
         }
-
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
 
         const prompt = `You are an expert interviewer evaluating a candidate's answer.
 
@@ -321,16 +362,15 @@ Respond ONLY in JSON format with this structure:
 
 Do not include any other text or explanation outside the JSON.`
 
-        const result = await model.generateContent(prompt)
-        const responseText = result.response.text()
-
-        const cleanJsonText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
-        const evaluation = JSON.parse(cleanJsonText)
+        const responseText = await geminiGenerate(prompt)
+        const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
+        const evaluation = JSON.parse(cleanJson)
 
         return res.json({ success: true, evaluation })
+
     } catch (error) {
-        console.error("Answer evaluation error:", error)
-        res.json({ success: false, message: 'Error evaluating answer. Please try again.' })
+        console.error("Answer evaluation error:", error.message)
+        res.json({ success: false, message: error.message || 'Error evaluating answer. Please try again.' })
     }
 }
 
@@ -345,8 +385,11 @@ export const updateUserResume = async (req, res) => {
         const userData = await User.findById(userId)
 
         if (resumeFile) {
-            // Upload as a 'raw' resource to bypass Cloudinary's strict PDF image-processing restrictions
-            const resumeUpload = await cloudinary.uploader.upload(resumeFile.path, { resource_type: "raw" })
+            const resumeUpload = await cloudinary.uploader.upload(resumeFile.path, {
+                resource_type: "auto",
+                format: "pdf",
+                type: "upload"
+            })
             userData.resume = resumeUpload.secure_url
         }
 

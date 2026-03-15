@@ -4,6 +4,8 @@ import { v2 as cloudinary } from 'cloudinary'
 import generateToken from "../utils/generateToken.js";
 import Job from "../models/Job.js";
 import JobApplication from "../models/JobApplication.js";
+import User from "../models/User.js";
+import { sendApplicationStatusEmail } from "../utils/sendEmail.js";
 // import { jobsData } from "../../client/src/assets/assets.js";
 
 
@@ -177,18 +179,40 @@ export const getCompanyPostedJobs = async (req,res) =>{
 }
 
 // Change Job Application Status
-export const changeJobApplicationStatus = async (req,res) =>{
-    
+export const changeJobApplicationStatus = async (req, res) => {
     try {
-        const {id, status} = req.body
-        //find job application and update status
-        await JobApplication.findOneAndUpdate({_id: id},{status})
+        const { id, status } = req.body
 
-        res.json({success:true, message:'Status Changed'})
+        const application = await JobApplication.findById(id)
+            .populate('userId', 'name email')
+            .populate('jobId', 'title')
+            .populate('companyId', 'name')
+
+        if (!application) {
+            return res.json({ success: false, message: 'Application not found' })
+        }
+
+        await JobApplication.findByIdAndUpdate(id, { status })
+
+        // Send status email to candidate
+        if (status === 'Accepted' || status === 'Rejected') {
+            try {
+                await sendApplicationStatusEmail(
+                    application.userId.email,
+                    application.userId.name,
+                    application.jobId.title,
+                    application.companyId.name,
+                    status
+                )
+            } catch (emailError) {
+                console.error('❌ Failed to send status email:', emailError.message)
+            }
+        }
+
+        res.json({ success: true, message: 'Status Changed' })
     } catch (error) {
-        res.json({success:false, message:error.message})
+        res.json({ success: false, message: error.message })
     }
-
 }
 
 // Change job visiblity

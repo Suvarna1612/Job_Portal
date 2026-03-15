@@ -15,6 +15,12 @@ const ViewApplications = () => {
   const [selectedJob, setSelectedJob] = useState('All')
   const [jobTitles, setJobTitles] = useState([])
 
+  // Route resume through backend proxy so browser opens it as inline PDF
+  const getViewableResumeUrl = (url) => {
+    if (!url) return '#'
+    return `${backendUrl}/api/company/resume-proxy?url=${encodeURIComponent(url)}`
+  }
+
   //function to fetch company job applications data
   const fetchCompanyJobApplications = async () => {
 
@@ -137,7 +143,9 @@ const ViewApplications = () => {
                 <td className='py-2 px-4 border-b max-sm:hidden'>{applicant.jobId.title}</td>
                 <td className='py-2 px-4 border-b max-sm:hidden'>{applicant.jobId.location}</td>
                 <td className='py-2 px-4 border-b'>
-                  <a href={applicant.userId.resume} target='_blank'
+                  <a href={getViewableResumeUrl(applicant.userId.resume)}
+                    target='_blank'
+                    rel='noopener noreferrer'
                     className='bg-blue-50 text-blue-400 px-3 py-1 rounded inline-flex items-center gap-2'>
                     Resume <img src={assets.resume_download_icon} alt="" />
                   </a>
