@@ -8,7 +8,7 @@ const jobSchema = new mongoose.Schema({
     level: {type:String, required:true},
     salary: {type:Number, required:true},
     date: {type:Number, required:true},
-    visible: {type:Boolean, default:true},
+    visible: {type:Boolean, default:true},//For toggling the visibility by choice of recruiter
     companyId: {type:mongoose.Schema.Types.ObjectId, ref:'Company', required:true},
     expiryDate: {type:Date, default:null}, // Optional: Job expiry date
     maxApplications: {type:Number, default:null}, // Optional: Maximum number of applications
