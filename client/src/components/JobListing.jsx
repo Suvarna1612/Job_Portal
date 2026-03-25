@@ -38,6 +38,7 @@ const JobListing = () => {
         setCompanies(uniqueCompanies.sort())
     }, [jobs])
 
+    
     useEffect(()=>{
         const matchesCategory = job => selectedCategories.length === 0 || selectedCategories.includes(job.category)
         
@@ -171,8 +172,6 @@ const JobListing = () => {
                         </a>
                     </div>
                 )}
-
-
             </section>
         </div>
     )
