@@ -1,5 +1,5 @@
 import express from 'express'
-import { applyForJob, getUserData, getUserJobApplications, updateUserResume, getApplicationById, generateInterviewQuestion, evaluateInterviewAnswer } from '../controllers/userController.js'
+import { applyForJob, getUserData, getUserJobApplications, updateUserResume, getApplicationById, generateInterviewQuestion, evaluateInterviewAnswer, getResumeProxy, toggleSaveJob, getSavedJobs, checkSavedJobs, toggleFollowCompany, getFollowedCompanies, checkFollowedCompanies, enhanceResume } from '../controllers/userController.js'
 import upload from '../config/multer.js'
 
 
@@ -25,5 +25,29 @@ router.post('/evaluate-answer', evaluateInterviewAnswer)
 
 // Update user profile (resume)
 router.post('/update-resume', upload.single('resume'),updateUserResume)
+
+// Proxy endpoint for serving resume files (fallback for Cloudinary 401 errors)
+router.get('/resume-proxy/:userId', getResumeProxy)
+
+// Save/Unsave job
+router.post('/toggle-save-job', toggleSaveJob)
+
+// Get saved jobs
+router.get('/saved-jobs', getSavedJobs)
+
+// Check if jobs are saved
+router.post('/check-saved-jobs', checkSavedJobs)
+
+// Follow/Unfollow company
+router.post('/toggle-follow-company', toggleFollowCompany)
+
+// Get followed companies
+router.get('/followed-companies', getFollowedCompanies)
+
+// Check if companies are followed
+router.post('/check-followed-companies', checkFollowedCompanies)
+
+// Enhance resume - ATS analysis
+router.post('/enhance-resume', upload.single('resume'), enhanceResume)
 
 export default router;

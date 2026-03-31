@@ -2,72 +2,112 @@ import React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { assets } from '../assets/assets'
 import { useContext, useEffect } from 'react'
-import {AppContext} from '../context/AppContext'
+import { AppContext } from '../context/AppContext'
 
 const Dashboard = () => {
-    const navigate = useNavigate()
-    const {companyData, setCompanyData, setCompanyToken} = useContext(AppContext)
+  const navigate = useNavigate()
+  const { companyData, setCompanyData, setCompanyToken } = useContext(AppContext)
 
-    // Function to handle logout
-    const logout = () => {
-        setCompanyData(null)
-        setCompanyToken(null)
-        localStorage.removeItem('companyToken')
-        navigate('/')
+  const logout = () => {
+    setCompanyData(null)
+    setCompanyToken(null)
+    localStorage.removeItem('companyToken')
+    navigate('/')
+  }
+
+  useEffect(() => {
+    if (companyData) {
+      navigate('/dashboard/manage-jobs')
     }
-
-    useEffect(() => {
-        if(companyData){
-            navigate('/dashboard/manage-jobs')
-        }
-    }, [companyData])
+  }, [companyData])
 
   return (
-    <div className='min-h-screen'>
-      {/* Navbar for Recruiter Panel */}
-      <div className='shadow py-4'>
-        <div className='px-5 flex justify-between items-center'>
-            <img onClick={e => navigate('/')} className='max-sm:w-32 cursor-pointer' src={assets.logo} alt="" />
-            {companyData && (
-                <div className='flex items-center gap-3'>
-
-                <p className='max-sm:hidden '>Welcome {companyData.name}</p>
-                <div className='relative group'>
-                    <img className='w-8 border rounded-full' src={companyData.image} alt="" />
-                    <div className='absolute hidden group-hover:block top-0 right-0 z-10 text-black rounded pt-12'>
-                        <ul className='list-none m-0 p-2 bg-white rounded-md border text-sm'>
-                            <li onClick={logout} className='py-1 px-2 cursor-pointer pr-10 '>Logout</li>
-                        </ul>
-                    </div>
-                </div>
+    <div className='min-h-screen bg-gray-50 flex flex-col'>
+      {/* Top Navbar */}
+      <header className='bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center sticky top-0 z-20 shadow-sm'>
+        <img
+          onClick={() => navigate('/')}
+          className='h-8 cursor-pointer'
+          src={assets.logo}
+          alt='logo'
+        />
+        {companyData && (
+          <div className='flex items-center gap-4'>
+            <div className='text-right hidden sm:block'>
+              <p className='text-xs text-gray-500'>Recruiter Panel</p>
+              <p className='text-sm font-semibold text-gray-800'>{companyData.name}</p>
             </div>
-            )}
-            
-        </div>
-      </div>
+            <div className='relative group'>
+              <img
+                className='w-9 h-9 rounded-full border-2 border-blue-500 object-cover cursor-pointer'
+                src={companyData.image}
+                alt='company'
+              />
+              <div className='absolute hidden group-hover:block top-full right-0 mt-2 z-10'>
+                <ul className='bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[130px]'>
+                  <li
+                    onClick={logout}
+                    className='px-4 py-2 text-sm text-red-500 hover:bg-red-50 cursor-pointer rounded-xl'
+                  >
+                    Logout
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </header>
 
-      <div className='flex items-start'>
-        {/* Left sidebar with option to add job, manage job, view aplications */}
-        <div className='inline-block min-h-screen border-r-2 border-gray-200'>
-            <ul className='flex flex-col items-start pt-5 text-gray-800'>
-                <NavLink className={({isActive}) => `flex items-center p-3 sm:px-6 gap-2 w-full hover:bg-gray-100 ${isActive && 'bg-blue-100 border-r-4 border-blue-500'}`} to={'/dashboard/add-job'}>
-                    <img className='min-w-4' src={assets.add_icon} alt="" />
-                    <p className='max-sm:hidden'>Add Job</p>
-                </NavLink>
+      <div className='flex flex-1'>
+        {/* Sidebar */}
+        <aside className='w-16 sm:w-56 bg-white border-r border-gray-200 flex flex-col py-6 gap-1 sticky top-[57px] h-[calc(100vh-57px)]'>
+          <NavLink
+            to='/dashboard/add-job'
+            className={({ isActive }) =>
+              `flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`
+            }
+          >
+            <img className='w-5 h-5 min-w-5' src={assets.add_icon} alt='' style={{ filter: 'none' }} />
+            <span className='max-sm:hidden'>Add Job</span>
+          </NavLink>
 
-                <NavLink className={({isActive}) => `flex items-center p-3 sm:px-6 gap-2 w-full hover:bg-gray-100 ${isActive && 'bg-blue-100 border-r-4 border-blue-500'}`} to={'/dashboard/manage-jobs'}>
-                    <img className='min-w-4' src={assets.home_icon} alt="" />
-                    <p className='max-sm:hidden'>Manage Jobs</p>
-                </NavLink>
-                <NavLink className={({isActive}) => `flex items-center p-3 sm:px-6 gap-2 w-full hover:bg-gray-100 ${isActive && 'bg-blue-100 border-r-4 border-blue-500'}`} to={'/dashboard/view-applications'}>
-                    <img className='min-w-4' src={assets.person_tick_icon} alt="" />
-                    <p className='max-sm:hidden'>View Applications</p>
-                </NavLink>
-            </ul>
-        </div>
-        <div className='flex-1 h-full p-2 sm:p-5'>
-            <Outlet/>
-        </div>
+          <NavLink
+            to='/dashboard/manage-jobs'
+            className={({ isActive }) =>
+              `flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`
+            }
+          >
+            <img className='w-5 h-5 min-w-5' src={assets.home_icon} alt='' />
+            <span className='max-sm:hidden'>Manage Jobs</span>
+          </NavLink>
+
+          <NavLink
+            to='/dashboard/view-applications'
+            className={({ isActive }) =>
+              `flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`
+            }
+          >
+            <img className='w-5 h-5 min-w-5' src={assets.person_tick_icon} alt='' />
+            <span className='max-sm:hidden'>Applications</span>
+          </NavLink>
+        </aside>
+
+        {/* Main Content */}
+        <main className='flex-1 p-6 overflow-auto'>
+          <Outlet />
+        </main>
       </div>
     </div>
   )

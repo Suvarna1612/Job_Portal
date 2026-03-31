@@ -60,6 +60,7 @@ import companyRoutes from './routes/companyRoutes.js';
 import connectCloudinary from './config/cloudinary.js';
 import jobRoutes from './routes/jobRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 import { clerkMiddleware } from '@clerk/express';
 
 // Initialize express
@@ -99,6 +100,7 @@ app.post('/webhooks', clerkWebhooks);
 app.use('/api/company', companyRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Port
 const PORT = process.env.PORT || 5000;

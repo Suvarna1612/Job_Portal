@@ -5,6 +5,9 @@ import ApplyJob from './pages/ApplyJob'
 import Applications from './pages/Applications'
 import Profile from './pages/Profile'
 import PrepareInterview from './pages/PrepareInterview'
+import SavedJobs from './pages/SavedJobs'
+import FollowedCompanies from './pages/FollowedCompanies'
+import EnhanceResume from './pages/EnhanceResume'
 import RecruiterLogin from './components/RecruiterLogin'
 import { AppContext } from './context/AppContext'
 import Dashboard from './pages/Dashboard'
@@ -29,6 +32,9 @@ const App = () => {
         <Route path='/applications' element={<Applications />} />
         <Route path='/profile' element={<Profile />} />
         <Route path='/prepare-interview/:id' element={<PrepareInterview />} />
+        <Route path='/saved-jobs' element={<SavedJobs />} />
+        <Route path='/followed-companies' element={<FollowedCompanies />} />
+        <Route path='/enhance-resume' element={<EnhanceResume />} />
         
         <Route path='/dashboard' element={
           <PrivateRoute>

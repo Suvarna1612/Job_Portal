@@ -101,6 +101,10 @@ export const sendApplicationStatusEmail = async (userEmail, userName, jobTitle, 
            <div style="background:#f0fff0;padding:15px;border-left:4px solid #4CAF50;margin:20px 0;">
                <p style="margin:0;color:#333;font-size:14px;">✓ Our team will reach out to you shortly with the next steps in the hiring process.</p>
            </div>
+           <div style="background:#e8f4fd;padding:15px;border-left:4px solid #2196F3;margin:20px 0;">
+               <p style="margin:0;color:#333;font-size:14px;">💡 <strong>Get Ready for Success!</strong></p>
+               <p style="margin:5px 0 0 0;color:#555;font-size:13px;">Use our "Prepare for Job" feature to practice interview questions and boost your confidence before the interview.</p>
+           </div>
            <p style="color:#555;font-size:14px;line-height:1.6;">Please keep an eye on your inbox for further communication from us.</p>`
         : `<p style="color:#555;font-size:14px;line-height:1.6;">
                Thank you for your interest in the <strong>${jobTitle}</strong> position at <strong>${companyName}</strong>.
@@ -137,6 +141,73 @@ export const sendApplicationStatusEmail = async (userEmail, userName, jobTitle, 
         return { success: true };
     } catch (error) {
         console.error(`❌ Status email failed: ${error.message}`);
+        return { success: false, error: error.message };
+    }
+};
+// Send new job notification to company followers
+export const sendNewJobNotification = async (userEmail, userName, jobTitle, companyName, jobId, jobLocation, jobSalary) => {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+        console.error('Email config missing: EMAIL_USER or EMAIL_PASSWORD not set in .env');
+        return { success: false, error: 'Email credentials not configured' };
+    }
+
+    try {
+        const transporter = createTransporter();
+        await transporter.verify();
+
+        const jobUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/apply-job/${jobId}`;
+
+        await transporter.sendMail({
+            from: `"${process.env.EMAIL_FROM_NAME || 'Job Portal'}" <${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: `New Job Alert: ${jobTitle} at ${companyName}`,
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+                    <h2 style="color:#333;border-bottom:2px solid #4CAF50;padding-bottom:10px;">🔔 New Job Alert!</h2>
+                    
+                    <p style="color:#555;font-size:16px;">Dear ${userName},</p>
+                    
+                    <p style="color:#555;font-size:14px;line-height:1.6;">
+                        Great news! <strong>${companyName}</strong>, a company you're following, has just posted a new job opportunity.
+                    </p>
+                    
+                    <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #4CAF50;">
+                        <h3 style="margin:0 0 10px 0;color:#333;font-size:18px;">${jobTitle}</h3>
+                        <p style="margin:5px 0;color:#666;"><strong>Company:</strong> ${companyName}</p>
+                        <p style="margin:5px 0;color:#666;"><strong>Location:</strong> ${jobLocation}</p>
+                        <p style="margin:5px 0;color:#666;"><strong>Salary:</strong> $${jobSalary}</p>
+                    </div>
+                    
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="${jobUrl}" 
+                           style="background:#4CAF50;color:white;padding:12px 30px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block;">
+                            View Job Details & Apply
+                        </a>
+                    </div>
+                    
+                    <p style="color:#555;font-size:14px;line-height:1.6;">
+                        Don't miss out on this opportunity! Click the button above to learn more and submit your application.
+                    </p>
+                    
+                    <p style="color:#555;font-size:14px;margin-top:30px;">
+                        Best regards,<br>
+                        <strong>Job Portal Team</strong>
+                    </p>
+                    
+                    <hr style="border:none;border-top:1px solid #e0e0e0;margin:30px 0;">
+                    
+                    <p style="color:#999;font-size:12px;text-align:center;">
+                        You're receiving this because you're following ${companyName}. 
+                        <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/following-companies" style="color:#4CAF50;">Manage your followed companies</a>
+                    </p>
+                </div>
+            `
+        });
+
+        console.log(`✅ New job notification sent to ${userEmail} for ${jobTitle} at ${companyName}`);
+        return { success: true };
+    } catch (error) {
+        console.error(`❌ New job notification failed: ${error.message}`);
         return { success: false, error: error.message };
     }
 };

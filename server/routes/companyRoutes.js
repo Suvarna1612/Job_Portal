@@ -1,5 +1,5 @@
 import express from'express'
-import { getCompanyPostedJobs,getCompanyJobApplicants,postJob,getCompanyData,loginCompany,registerCompany, changeJobApplicationStatus, changeVisibility } from '../controllers/companyController.js'
+import { getCompanyPostedJobs,getCompanyJobApplicants,postJob,getCompanyData,loginCompany,registerCompany, changeJobApplicationStatus, changeVisibility, regenerateMatchAnalytics, deleteJobApplication } from '../controllers/companyController.js'
 import upload from '../config/multer.js'
 import { protectCompany } from '../middleware/authMiddleware.js'
 import axios from 'axios'
@@ -29,6 +29,12 @@ router.post('/change-status',protectCompany,changeJobApplicationStatus)
 
 //Change Application visiblity
 router.post('/change-visibility',protectCompany,changeVisibility)
+
+// Regenerate match analytics for existing applications
+router.post('/regenerate-analytics',protectCompany, regenerateMatchAnalytics)
+
+// Delete job application
+router.post('/delete-application',protectCompany, deleteJobApplication)
 
 // Proxy resume PDF so browser can view it inline (no auth needed - URL is already secured by Cloudinary)
 router.get('/resume-proxy', async (req, res) => {

@@ -15,6 +15,7 @@ const PrepareInterview = () => {
   const navigate = useNavigate()
 
   const [jobData, setJobData] = useState(null)
+  const [applicationData, setApplicationData] = useState(null)
   const [currentQuestion, setCurrentQuestion] = useState('')
   const [userAnswer, setUserAnswer] = useState('')
   const [feedback, setFeedback] = useState(null)
@@ -34,7 +35,15 @@ const PrepareInterview = () => {
       )
 
       if (data.success) {
+        setApplicationData(data.application)
         setJobData(data.application.jobId)
+        
+        // Check if application is accepted
+        if (data.application.status !== 'Accepted') {
+          toast.error('Interview preparation is only available for accepted applications')
+          navigate('/applications')
+          return
+        }
       } else {
         toast.error(data.message)
       }
@@ -223,8 +232,13 @@ const PrepareInterview = () => {
             >
               ← Back to Applications
             </button>
-            <h1 className='text-3xl font-bold mb-2'>Interview Preparation</h1>
-            <div className='bg-blue-50 border border-blue-200 rounded-lg p-4'>
+            <h1 className='text-3xl font-bold mb-2'>Job Interview Preparation</h1>
+            <div className='bg-green-50 border border-green-200 rounded-lg p-4'>
+              <div className='flex items-center gap-2 mb-2'>
+                <span className='bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold'>
+                  Application Accepted
+                </span>
+              </div>
               <h2 className='text-xl font-semibold'>{jobData.title}</h2>
               <p className='text-gray-600'>
                 {jobData.companyId?.name} • {jobData.location}
@@ -239,6 +253,7 @@ const PrepareInterview = () => {
                 Ready to Practice?
               </h3>
               <p className='text-gray-600 mb-6'>
+                Congratulations! Your application has been accepted. 
                 Get AI-powered interview questions based on the job description.
                 Answer them and receive instant feedback to improve your skills.
               </p>

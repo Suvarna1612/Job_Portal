@@ -19,6 +19,12 @@ const Navbar = () => {
               ?<div className='flex items-center gap-3'>
                 <Link to={'/applications'}>Applied Jobs</Link>
                 <p>|</p>
+                <Link to={'/saved-jobs'}>Saved Jobs</Link>
+                <p>|</p>
+                <Link to={'/followed-companies'}>Company Alerts</Link>
+                <p>|</p>
+                <Link to={'/enhance-resume'} className='text-blue-600 font-medium'>Enhance Resume</Link>
+                <p>|</p>
                 <p className='max-sm:hidden'>Hi, {user.firstName+" "+user.lastName}</p>
                 <UserButton>
                   <UserButton.MenuItems>
