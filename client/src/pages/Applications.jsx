@@ -107,6 +107,7 @@ const Applications = () => {
                           senderId={user?.id}
                           backendUrl={backendUrl}
                           authToken={authToken}
+                          getToken={getToken}
                         />
                       </td>
                     </tr>

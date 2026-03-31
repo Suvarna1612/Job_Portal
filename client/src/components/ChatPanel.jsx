@@ -44,7 +44,7 @@ const typeLabel = (type) => {
     }
 }
 
-const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, companyToken, companyName }) => {
+const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, companyToken, companyName, getToken }) => {
     const [chat, setChat] = useState(null)
     const [locked, setLocked] = useState(false)
     const [input, setInput] = useState('')
@@ -54,27 +54,38 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
     const fileInputRef = useRef(null)
     const bottomRef = useRef(null)
     const pollRef = useRef(null)
+    const initialLoadDone = useRef(false)
 
-    const fetchChat = async () => {
+    const fetchChat = async (isInitial = false) => {
         try {
+            // Always get a fresh token for candidate to avoid stale token issues
+            let token = authToken
+            if (role === 'candidate' && getToken) {
+                try { token = await getToken() } catch (e) { /* use existing */ }
+            }
             const headers = role === 'candidate'
-                ? { Authorization: `Bearer ${authToken}` }
+                ? { Authorization: `Bearer ${token}` }
                 : { token: companyToken }
             const url = role === 'candidate'
                 ? `${backendUrl}/api/chat/candidate/${applicationId}`
                 : `${backendUrl}/api/chat/recruiter/${applicationId}`
             const { data } = await axios.get(url, { headers })
-            if (data.success) { setChat(data.chat); setLocked(false) }
-            else if (data.chatLocked) setLocked(true)
-            // silently ignore other errors during polling
+            if (data.success) {
+                setChat(data.chat)
+                // Only unlock if we were locked — never re-lock during polling
+                if (isInitial) setLocked(false)
+            } else if (data.chatLocked && isInitial) {
+                // Only show locked state on initial load, not on background polls
+                setLocked(true)
+            }
         } catch (e) { /* silent */ }
-        setLoading(false)
+        if (isInitial) setLoading(false)
     }
 
     useEffect(() => {
         if (!applicationId) return
-        fetchChat()
-        pollRef.current = setInterval(fetchChat, 10000)
+        fetchChat(true)
+        pollRef.current = setInterval(() => fetchChat(false), 10000)
         return () => clearInterval(pollRef.current)
     }, [applicationId])
 
@@ -86,8 +97,13 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
         if (!message?.trim() && !file) return
         setSending(true)
         try {
+            // Always get fresh token for candidate
+            let token = authToken
+            if (role === 'candidate' && getToken) {
+                try { token = await getToken() } catch (e) { /* use existing */ }
+            }
             const headers = role === 'candidate'
-                ? { Authorization: `Bearer ${authToken}` }
+                ? { Authorization: `Bearer ${token}` }
                 : { token: companyToken }
 
             let payload, config
