@@ -44,15 +44,14 @@ const typeLabel = (type) => {
     }
 }
 
-// role: 'candidate' | 'recruiter'
-// senderId: userId (candidate) or companyId (recruiter)
-// token: auth token (candidate uses Bearer, recruiter uses token header)
-const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, companyToken }) => {
+const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, companyToken, companyName }) => {
     const [chat, setChat] = useState(null)
     const [locked, setLocked] = useState(false)
     const [input, setInput] = useState('')
     const [sending, setSending] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [selectedFile, setSelectedFile] = useState(null)
+    const fileInputRef = useRef(null)
     const bottomRef = useRef(null)
     const pollRef = useRef(null)
 
@@ -61,21 +60,14 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
             const headers = role === 'candidate'
                 ? { Authorization: `Bearer ${authToken}` }
                 : { token: companyToken }
-
             const url = role === 'candidate'
                 ? `${backendUrl}/api/chat/candidate/${applicationId}`
                 : `${backendUrl}/api/chat/recruiter/${applicationId}`
-
             const { data } = await axios.get(url, { headers })
-            if (data.success) {
-                setChat(data.chat)
-                setLocked(false)
-            } else if (data.chatLocked) {
-                setLocked(true)
-            }
-        } catch (e) {
-            // silent poll failure
-        }
+            if (data.success) { setChat(data.chat); setLocked(false) }
+            else if (data.chatLocked) setLocked(true)
+            // silently ignore other errors during polling
+        } catch (e) { /* silent */ }
         setLoading(false)
     }
 
@@ -90,26 +82,43 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [chat?.messages?.length])
 
-    const sendMessage = async (message, type = 'text') => {
-        if (!message.trim()) return
+    const sendMessage = async (message, type = 'text', file = null) => {
+        if (!message?.trim() && !file) return
         setSending(true)
         try {
-            const url = role === 'candidate'
-                ? `${backendUrl}/api/chat/candidate/send`
-                : `${backendUrl}/api/chat/recruiter/send`
-
-            const payload = role === 'candidate'
-                ? { applicationId, message, type }
-                : { applicationId, message, type, recruiterId: senderId }
-
             const headers = role === 'candidate'
                 ? { Authorization: `Bearer ${authToken}` }
                 : { token: companyToken }
 
-            const { data } = await axios.post(url, payload, { headers })
+            let payload, config
+
+            if (role === 'candidate' && file) {
+                // Use FormData for file upload
+                const formData = new FormData()
+                formData.append('applicationId', applicationId)
+                formData.append('message', message || '')
+                formData.append('type', type)
+                formData.append('file', file)
+                payload = formData
+                config = { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
+            } else {
+                payload = role === 'candidate'
+                    ? { applicationId, message, type }
+                    : { applicationId, message, type, recruiterId: senderId, companyName }
+                config = { headers }
+            }
+
+            const url = role === 'candidate'
+                ? `${backendUrl}/api/chat/candidate/send`
+                : `${backendUrl}/api/chat/recruiter/send`
+
+            const { data } = await axios.post(url, payload, config)
             if (data.success) {
                 setChat(data.chat)
                 setInput('')
+                setSelectedFile(null)
+            } else if (data.chatLocked) {
+                setLocked(true)
             } else {
                 toast.error(data.message)
             }
@@ -118,6 +127,10 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
         }
         setSending(false)
     }
+
+    // Check if last recruiter message was a document request
+    const lastRecruiterMsg = chat?.messages?.filter(m => m.senderRole === 'recruiter').slice(-1)[0]
+    const showUploadPrompt = role === 'candidate' && lastRecruiterMsg?.type === 'document_request'
 
     if (loading) return (
         <div className='flex items-center justify-center h-40'>
@@ -143,14 +156,14 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
     const quickReplies = role === 'candidate' ? CANDIDATE_QUICK : RECRUITER_QUICK
 
     return (
-        <div className='flex flex-col h-[420px] bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden'>
+        <div className='flex flex-col h-[440px] bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden'>
             {/* Header */}
             <div className='px-4 py-3 bg-blue-600 flex items-center gap-2'>
                 <svg className='w-4 h-4 text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' />
                 </svg>
                 <span className='text-white text-sm font-semibold'>Application Chat</span>
-                <span className='ml-auto text-xs text-blue-200'>Polls every 10s</span>
+                <span className='ml-auto text-xs text-blue-200'>Auto-refreshes every 10s</span>
             </div>
 
             {/* Messages */}
@@ -164,7 +177,7 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
                     const isMe = msg.senderRole === role
                     return (
                         <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                            <div className={`max-w-[75%] flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
                                 {typeLabel(msg.type) && (
                                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${typeBadge(msg.type)}`}>
                                         {typeIcon(msg.type)} {typeLabel(msg.type)}
@@ -176,6 +189,20 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
                                         : 'bg-white text-gray-800 border border-gray-100 rounded-bl-sm shadow-sm'
                                 }`}>
                                     {msg.message}
+                                    {/* File attachment */}
+                                    {msg.fileUrl && (
+                                        <a
+                                            href={msg.fileUrl}
+                                            target='_blank'
+                                            rel='noopener noreferrer'
+                                            className={`flex items-center gap-1.5 mt-2 text-xs underline ${isMe ? 'text-blue-100' : 'text-blue-600'}`}
+                                        >
+                                            <svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                                                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13' />
+                                            </svg>
+                                            {msg.fileName || 'View attachment'}
+                                        </a>
+                                    )}
                                 </div>
                                 <div className='flex items-center gap-1'>
                                     <span className='text-[10px] text-gray-400'>{moment(msg.timestamp).fromNow()}</span>
@@ -191,6 +218,42 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
                 })}
                 <div ref={bottomRef} />
             </div>
+
+            {/* Document upload prompt — shown to candidate when recruiter requests docs */}
+            {showUploadPrompt && (
+                <div className='px-3 py-2 bg-orange-50 border-t border-orange-100 flex items-center gap-2'>
+                    <svg className='w-4 h-4 text-orange-500 flex-shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13' />
+                    </svg>
+                    <span className='text-xs text-orange-700 flex-1'>Recruiter requested documents</span>
+                    <input
+                        ref={fileInputRef}
+                        type='file'
+                        className='hidden'
+                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                    />
+                    {selectedFile ? (
+                        <div className='flex items-center gap-2'>
+                            <span className='text-xs text-gray-600 max-w-[120px] truncate'>{selectedFile.name}</span>
+                            <button
+                                onClick={() => sendMessage('', 'document_request', selectedFile)}
+                                disabled={sending}
+                                className='text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg transition-colors'
+                            >
+                                {sending ? 'Sending...' : 'Send'}
+                            </button>
+                            <button onClick={() => setSelectedFile(null)} className='text-gray-400 hover:text-gray-600 text-xs'>✕</button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className='text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg transition-colors font-medium'
+                        >
+                            Upload File
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Quick Replies */}
             <div className='px-3 py-2 border-t border-gray-100 bg-white flex gap-1.5 overflow-x-auto'>

@@ -211,3 +211,39 @@ export const sendNewJobNotification = async (userEmail, userName, jobTitle, comp
         return { success: false, error: error.message };
     }
 };
+
+// Send chat message notification to candidate
+export const sendChatMessageNotification = async (userEmail, userName, companyName, messagePreview, appUrl) => {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) return { success: false }
+    try {
+        const transporter = createTransporter()
+        await transporter.verify()
+        await transporter.sendMail({
+            from: `"${process.env.EMAIL_FROM_NAME || 'Job Portal'}" <${process.env.EMAIL_USER}>`,
+            to: userEmail,
+            subject: `New message from ${companyName}`,
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+                    <h2 style="color:#333;border-bottom:2px solid #2563eb;padding-bottom:10px;">💬 New Message</h2>
+                    <p style="color:#555;font-size:16px;">Hi ${userName},</p>
+                    <p style="color:#555;font-size:14px;line-height:1.6;">
+                        You have a new message from <strong>${companyName}</strong> regarding your job application.
+                    </p>
+                    <div style="background:#f0f4ff;padding:15px;border-left:4px solid #2563eb;margin:20px 0;border-radius:4px;">
+                        <p style="margin:0;color:#333;font-size:14px;font-style:italic;">"${messagePreview}"</p>
+                    </div>
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="${appUrl}" style="background:#2563eb;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">
+                            View & Reply
+                        </a>
+                    </div>
+                    <p style="color:#999;font-size:12px;text-align:center;margin-top:30px;">This is an automated notification from Job Portal.</p>
+                </div>
+            `
+        })
+        return { success: true }
+    } catch (error) {
+        console.error('Chat notification email failed:', error.message)
+        return { success: false }
+    }
+}

@@ -22,6 +22,7 @@ const ViewApplications = () => {
   const [jobTitles, setJobTitles] = useState([])
   const [sortBy, setSortBy] = useState('date')
   const [openChatId, setOpenChatId] = useState(null)
+  const [unreadCounts, setUnreadCounts] = useState({})
 
   const getViewableResumeUrl = (url) => {
     if (!url) return '#'
@@ -106,8 +107,23 @@ const ViewApplications = () => {
   }
 
   useEffect(() => {
-    if (companyToken) fetchCompanyJobApplications()
+    if (companyToken) {
+      fetchCompanyJobApplications()
+      // Fetch unread counts and poll every 15s
+      fetchUnreadCounts()
+      const interval = setInterval(fetchUnreadCounts, 15000)
+      return () => clearInterval(interval)
+    }
   }, [companyToken])
+
+  const fetchUnreadCounts = async () => {
+    try {
+      const { data } = await axios.get(backendUrl + '/api/chat/recruiter/unread/counts', {
+        headers: { token: companyToken }
+      })
+      if (data.success) setUnreadCounts(data.counts)
+    } catch (e) { /* silent */ }
+  }
 
   if (!applicants) return <Loading />
 
@@ -344,7 +360,7 @@ const ViewApplications = () => {
                     {applicant.status === 'Accepted' ? (
                       <button
                         onClick={() => setOpenChatId(prev => prev === applicant._id ? null : applicant._id)}
-                        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                        className={`relative flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
                           openChatId === applicant._id
                             ? 'bg-blue-600 text-white'
                             : 'bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-600'
@@ -354,6 +370,11 @@ const ViewApplications = () => {
                           <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' />
                         </svg>
                         Chat
+                        {unreadCounts[applicant._id] > 0 && openChatId !== applicant._id && (
+                          <span className='absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center'>
+                            {unreadCounts[applicant._id] > 9 ? '9+' : unreadCounts[applicant._id]}
+                          </span>
+                        )}
                       </button>
                     ) : (
                       <span className='text-xs text-gray-300'>Locked</span>
@@ -370,6 +391,7 @@ const ViewApplications = () => {
                         senderId={applicant.companyId?._id || applicant.companyId}
                         backendUrl={backendUrl}
                         companyToken={companyToken}
+                        companyName={applicant.companyId?.name || ''}
                       />
                     </td>
                   </tr>

@@ -9,6 +9,8 @@ const messageSchema = new mongoose.Schema({
         enum: ['text', 'interview_invite', 'document_request', 'status_update'],
         default: 'text'
     },
+    fileUrl: { type: String, default: null },
+    fileName: { type: String, default: null },
     read: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now }
 })
