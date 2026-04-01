@@ -106,7 +106,7 @@ export const getCompanyData = async (req,res) => {
 // Post a new job
 export const postJob = async (req,res) =>{
 
-    const { title, description, location, salary, level, category, expiryDate, maxApplications } = req.body
+    const { title, description, location, salary, level, category, expiryDate, maxApplications, customQuestions } = req.body
 
     const companyId = req.company._id
 
@@ -128,6 +128,10 @@ export const postJob = async (req,res) =>{
         }
         if (maxApplications) {
             jobData.maxApplications = parseInt(maxApplications)
+        }
+        if (customQuestions && customQuestions.length > 0) {
+            // Filter out empty questions
+            jobData.customQuestions = customQuestions.filter(q => q.question && q.question.trim() !== '')
         }
 
         const newJob = new Job(jobData)
@@ -226,7 +230,7 @@ export const getCompanyPostedJobs = async (req,res) =>{
         // Adding No of applications info in data
         const jobsData = await Promise.all(jobs.map(async (job) => {
             const applicants = await JobApplication.find({jobId: job._id});
-            return {...job.toObject(), applicants: applicants.length}
+            return {...job.toObject(), applicationCount: applicants.length}
         }))
 
         res.json({success:true, jobsData})
@@ -297,34 +301,72 @@ export const changeVisibility = async (req,res) =>{
     }
 }
 
-// Regenerate match analytics for applications that don't have them
-export const regenerateMatchAnalytics = async (req, res) => {
+// Generate match analytics for new applications that don't have them
+export const generateMatchAnalytics = async (req, res) => {
     try {
         const companyId = req.company._id
 
-        // Find applications without match analytics
-        const applicationsWithoutAnalytics = await JobApplication.find({
-            companyId,
-            $or: [
-                { matchAnalytics: { $exists: false } },
-                { 'matchAnalytics.overallMatch': 0 }
-            ]
-        })
-        .populate('userId', 'name resume')
-        .populate('jobId', 'title description')
+        // Use helper function to get applications that truly need analytics
+        const { getApplicationsNeedingAnalytics, createAnalyticsObject, logAnalyticsProcessing, getAnalyticsStats } = await import('../utils/analyticsHelper.js')
+        
+        const applicationsNeedingAnalytics = await getApplicationsNeedingAnalytics(companyId)
+        
+        console.log(`Found ${applicationsNeedingAnalytics.length} applications that need analytics processing`)
 
-        console.log(`Found ${applicationsWithoutAnalytics.length} applications without analytics`)
+        if (applicationsNeedingAnalytics.length === 0) {
+            const stats = await getAnalyticsStats(companyId)
+            return res.json({ 
+                success: true, 
+                message: "All applications already have analytics. No processing needed.",
+                processed: 0,
+                errors: 0,
+                rateLimited: 0,
+                alreadyProcessed: true,
+                stats
+            })
+        }
 
         let processed = 0
         let errors = 0
+        let rateLimited = 0
+        let skipped = 0
 
-        for (const application of applicationsWithoutAnalytics) {
-            try {
-                if (!application.userId.resume || !application.jobId.description) {
-                    console.log(`Skipping application ${application._id} - missing resume or job description`)
-                    continue
+        // Helper function for exponential backoff retry
+        const retryWithBackoff = async (fn, maxRetries = 2) => {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    return await fn()
+                } catch (error) {
+                    if (error.status === 429) {
+                        const retryAfter = error.errorDetails?.find(detail => 
+                            detail['@type'] === 'type.googleapis.com/google.rpc.RetryInfo'
+                        )?.retryDelay || '20s'
+                        
+                        const waitTime = parseRetryDelay(retryAfter)
+                        
+                        if (attempt === maxRetries) {
+                            throw new Error(`RATE_LIMIT_EXCEEDED:${waitTime}`)
+                        }
+                        
+                        console.log(`⏳ Rate limit hit during batch processing. Waiting ${waitTime}ms before retry ${attempt}/${maxRetries}`)
+                        await new Promise(resolve => setTimeout(resolve, waitTime))
+                        continue
+                    }
+                    throw error
                 }
+            }
+        }
 
+        const parseRetryDelay = (retryDelay) => {
+            if (typeof retryDelay === 'string') {
+                const match = retryDelay.match(/(\d+)s/)
+                return match ? parseInt(match[1]) * 1000 : 20000
+            }
+            return 20000
+        }
+
+        for (const application of applicationsNeedingAnalytics) {
+            try {
                 // Import required modules
                 const { GoogleGenerativeAI } = await import('@google/generative-ai')
                 const axios = (await import('axios')).default
@@ -339,7 +381,7 @@ export const regenerateMatchAnalytics = async (req, res) => {
                 const resumeData = await pdfParse(pdfBuffer)
                 const resumeText = resumeData.text
 
-                // Generate analytics using AI
+                // Generate analytics using AI with retry mechanism
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
 
@@ -361,46 +403,154 @@ Provide ONLY a JSON response with the following structure:
 
 Do not include any other text or explanation.`
 
-                const result = await model.generateContent(prompt)
+                const result = await retryWithBackoff(async () => {
+                    return await model.generateContent(prompt)
+                })
+
                 const responseText = result.response.text()
                 const cleanJsonText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
                 const matchData = JSON.parse(cleanJsonText)
 
+                // Create analytics object with proper timestamp
+                const analyticsObject = createAnalyticsObject(matchData)
+
                 // Update the application with analytics
                 await JobApplication.findByIdAndUpdate(application._id, {
-                    matchAnalytics: {
-                        overallMatch: matchData.overallMatch || 0,
-                        skillsMatch: matchData.skillsMatch || 0,
-                        experienceMatch: matchData.experienceMatch || 0,
-                        educationMatch: matchData.educationMatch || 0,
-                        analysisDate: new Date()
-                    }
+                    matchAnalytics: analyticsObject
                 })
 
                 processed++
-                console.log(`✅ Processed application ${application._id} - Overall: ${matchData.overallMatch}%`)
+                logAnalyticsProcessing(application._id, analyticsObject, true)
 
-                // Add small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 1000))
+                // Add delay between requests to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 2000)) // 2 second delay
 
             } catch (error) {
-                console.error(`❌ Error processing application ${application._id}:`, error.message)
-                errors++
+                if (error.message?.startsWith('RATE_LIMIT_EXCEEDED:')) {
+                    console.error(`⏳ Rate limit exceeded for application ${application._id}. Stopping batch processing.`)
+                    rateLimited++
+                    break // Stop processing more applications
+                } else {
+                    console.error(`❌ Error processing application ${application._id}:`, error.message)
+                    errors++
+                }
             }
         }
 
+        // Get final stats
+        const finalStats = await getAnalyticsStats(companyId)
+
+        let message = `Analytics generated for ${processed} NEW applications.`
+        if (skipped > 0) message += ` ${skipped} applications were skipped.`
+        if (errors > 0) message += ` ${errors} errors occurred.`
+        if (rateLimited > 0) message += ` Processing stopped due to API rate limits.`
+
         res.json({ 
             success: true, 
-            message: `Analytics regenerated for ${processed} applications. ${errors} errors occurred.`,
+            message,
             processed,
-            errors
+            skipped,
+            errors,
+            rateLimited,
+            totalFound: applicationsNeedingAnalytics.length,
+            stats: finalStats,
+            quotaInfo: rateLimited > 0 ? {
+                dailyLimit: "1,500 requests per day",
+                minuteLimit: "15 requests per minute",
+                resetTime: "Quotas reset every minute and daily at midnight UTC",
+                suggestion: "Try running this again in a few minutes, or process applications in smaller batches."
+            } : null
         })
 
     } catch (error) {
-        console.error('Error regenerating analytics:', error)
+        console.error('Error generating analytics:', error)
         res.json({ success: false, message: error.message })
     }
 }
+// Edit Job
+export const editJob = async (req, res) => {
+    try {
+        const { id, title, description, location, salary, level, category, expiryDate, maxApplications, customQuestions } = req.body
+        const companyId = req.company._id
+
+        // Find the job and verify it belongs to this company
+        const job = await Job.findById(id)
+        if (!job) {
+            return res.json({ success: false, message: 'Job not found' })
+        }
+
+        if (job.companyId.toString() !== companyId.toString()) {
+            return res.json({ success: false, message: 'Unauthorized to edit this job' })
+        }
+
+        // Update job data
+        const updateData = {
+            title,
+            description,
+            location,
+            salary,
+            level,
+            category
+        }
+
+        // Add optional fields if provided
+        if (expiryDate) {
+            updateData.expiryDate = new Date(expiryDate)
+        } else {
+            updateData.expiryDate = null
+        }
+
+        if (maxApplications) {
+            updateData.maxApplications = parseInt(maxApplications)
+        } else {
+            updateData.maxApplications = null
+        }
+
+        if (customQuestions && customQuestions.length > 0) {
+            // Filter out empty questions
+            updateData.customQuestions = customQuestions.filter(q => q.question && q.question.trim() !== '')
+        } else {
+            updateData.customQuestions = []
+        }
+
+        const updatedJob = await Job.findByIdAndUpdate(id, updateData, { new: true })
+
+        res.json({ success: true, message: 'Job updated successfully', job: updatedJob })
+    } catch (error) {
+        console.error('Edit job error:', error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// Delete Job
+export const deleteJob = async (req, res) => {
+    try {
+        const { id } = req.body
+        const companyId = req.company._id
+
+        // Find the job and verify it belongs to this company
+        const job = await Job.findById(id)
+        if (!job) {
+            return res.json({ success: false, message: 'Job not found' })
+        }
+
+        if (job.companyId.toString() !== companyId.toString()) {
+            return res.json({ success: false, message: 'Unauthorized to delete this job' })
+        }
+
+        // Delete all applications for this job
+        await JobApplication.deleteMany({ jobId: id })
+
+        // Delete the job
+        await Job.findByIdAndDelete(id)
+
+        res.json({ success: true, message: 'Job and all related applications deleted successfully' })
+    } catch (error) {
+        console.error('Delete job error:', error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
 // Delete Job Application
 export const deleteJobApplication = async (req, res) => {
     try {

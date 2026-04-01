@@ -13,7 +13,13 @@ const JobApplicationSchema = new mongoose.Schema({
         experienceMatch: { type: Number, default: 0 }, // 0-100
         educationMatch: { type: Number, default: 0 }, // 0-100
         analysisDate: { type: Date, default: Date.now }
-    }
+    },
+    // Custom question answers
+    customAnswers: [{
+        questionId: { type: String, required: true }, // Index or ID of the question
+        question: { type: String, required: true }, // Store the question text for reference
+        answer: { type: String, required: true }
+    }]
 })
 
 const JobApplication = mongoose.model('JobApplication',JobApplicationSchema)

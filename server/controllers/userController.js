@@ -53,7 +53,7 @@ export const getUserData = async (req, res) => {
 // Apply for a job
 export const applyForJob = async (req, res) => {
 
-    const { jobId } = req.body
+    const { jobId, customAnswers } = req.body
 
     const { userId } = getAuth(req)
 
@@ -94,6 +94,44 @@ export const applyForJob = async (req, res) => {
 
         let overallMatch = 0, skillsMatch = 0, experienceMatch = 0, educationMatch = 0
 
+        // Helper function for exponential backoff retry
+        const retryWithBackoff = async (fn, maxRetries = 3) => {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    return await fn()
+                } catch (error) {
+                    // Check if it's a rate limit error
+                    if (error.status === 429) {
+                        const retryAfter = error.errorDetails?.find(detail => 
+                            detail['@type'] === 'type.googleapis.com/google.rpc.RetryInfo'
+                        )?.retryDelay || '20s'
+                        
+                        const waitTime = parseRetryDelay(retryAfter)
+                        
+                        if (attempt === maxRetries) {
+                            throw new Error(`RATE_LIMIT_EXCEEDED:${waitTime}`)
+                        }
+                        
+                        console.log(`⏳ Rate limit hit. Waiting ${waitTime}ms before retry ${attempt}/${maxRetries}`)
+                        await new Promise(resolve => setTimeout(resolve, waitTime))
+                        continue
+                    }
+                    
+                    // For non-rate-limit errors, don't retry
+                    throw error
+                }
+            }
+        }
+
+        // Helper function to parse retry delay
+        const parseRetryDelay = (retryDelay) => {
+            if (typeof retryDelay === 'string') {
+                const match = retryDelay.match(/(\d+)s/)
+                return match ? parseInt(match[1]) * 1000 : 20000 // Default 20 seconds
+            }
+            return 20000
+        }
+
         try {
             // Import pdf-parse from lib to avoid test file loading issue
             const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default
@@ -132,9 +170,12 @@ Provide ONLY a JSON response with the following structure:
 
 Do not include any other text or explanation.`;
 
-            const result = await model.generateContent(prompt)
-            const responseText = result.response.text()
+            // Use retry mechanism for API call
+            const result = await retryWithBackoff(async () => {
+                return await model.generateContent(prompt)
+            })
 
+            const responseText = result.response.text()
             const cleanJsonText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
             const matchData = JSON.parse(cleanJsonText)
             
@@ -153,7 +194,7 @@ Resume Content: ${resumeText}
 Match Percentage: ${overallMatch}%
 
 Provide 5-7 specific, actionable learning suggestions including:
-1. Technical skills to develop
+1. Domain skills to develop
 2. Certifications to pursue
 3. Online courses or platforms to use
 4. Projects to build
@@ -163,16 +204,23 @@ Format as a JSON object with this structure:
 {
   "suggestions": [
     {
-      "category": "Technical Skills",
-      "title": "Learn [Specific Technology]",
-      "description": "Brief description of why this is important",
+      "category": "Domain Skills",
+      "title": "Learn [Specific Skill/Knowledge Area]",
+      "description": "Brief description of why this is important for this role",
       "resources": ["Resource 1", "Resource 2"]
     }
   ]
 }
 
+Note: For domain skills, focus on the specific knowledge, tools, methodologies, or competencies required for this particular field or role, whether technical or non-technical.
+
 Provide ONLY the JSON response, no other text.`
-                    const suggestionResult = await model.generateContent(suggestionPrompt)
+
+                    // Use retry mechanism for suggestions API call too
+                    const suggestionResult = await retryWithBackoff(async () => {
+                        return await model.generateContent(suggestionPrompt)
+                    })
+
                     const suggestionText = suggestionResult.response.text()
                     const cleanSuggestionJson = suggestionText.replace(/```json/gi, '').replace(/```/g, '').trim()
                     const suggestions = JSON.parse(cleanSuggestionJson)
@@ -184,6 +232,22 @@ Provide ONLY the JSON response, no other text.`
                     })
                 } catch (suggestionError) {
                     console.error("Suggestion generation error:", suggestionError)
+                    
+                    // Handle rate limit for suggestions
+                    if (suggestionError.message?.startsWith('RATE_LIMIT_EXCEEDED:')) {
+                        const waitTime = suggestionError.message.split(':')[1]
+                        return res.json({
+                            success: false,
+                            message: `Unfortunately, your profile does not meet the necessary qualifications and skillset required for this position at this time.`,
+                            matchPercentage: overallMatch,
+                            rateLimitInfo: {
+                                isRateLimited: true,
+                                retryAfter: Math.ceil(parseInt(waitTime) / 1000),
+                                message: `AI analysis is temporarily unavailable due to high demand. Please try again in ${Math.ceil(parseInt(waitTime) / 1000)} seconds.`
+                            }
+                        })
+                    }
+                    
                     return res.json({
                         success: false,
                         message: `Unfortunately, your profile does not meet the necessary qualifications and skillset required for this position at this time.`,
@@ -193,6 +257,27 @@ Provide ONLY the JSON response, no other text.`
             }
         } catch (error) {
             console.error("Resume scoring error:", error)
+
+            // Handle rate limiting specifically
+            if (error.message?.startsWith('RATE_LIMIT_EXCEEDED:')) {
+                const waitTime = error.message.split(':')[1]
+                const waitTimeSeconds = Math.ceil(parseInt(waitTime) / 1000)
+                
+                return res.json({ 
+                    success: false, 
+                    message: 'AI resume analysis is temporarily unavailable due to high demand. Please try again in a few moments.',
+                    rateLimitInfo: {
+                        isRateLimited: true,
+                        retryAfter: waitTimeSeconds,
+                        message: `Please wait ${waitTimeSeconds} seconds before trying again. Our AI analysis service has reached its quota limit.`,
+                        quotaInfo: {
+                            dailyLimit: "1,500 requests per day",
+                            minuteLimit: "15 requests per minute",
+                            resetTime: "Quotas reset every minute and daily at midnight UTC"
+                        }
+                    }
+                })
+            }
 
             if (error.isAxiosError && error.response) {
                 const status = error.response.status
@@ -231,7 +316,8 @@ Provide ONLY the JSON response, no other text.`
                 experienceMatch: experienceMatch,
                 educationMatch: educationMatch,
                 analysisDate: new Date()
-            }
+            },
+            customAnswers: customAnswers || []
         })
 
         // Increment application count for the job
@@ -312,20 +398,33 @@ export const getApplicationById = async (req, res) => {
     }
 }
 
-// Helper: try Gemini with multiple fallback models
+// Helper: try Gemini with multiple fallback models and rate limiting
 const geminiGenerate = async (prompt) => {
+    const { retryWithBackoff } = await import('../utils/rateLimitHandler.js')
+    
     const models = ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.5-flash']
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     let lastError
+    
     for (const modelName of models) {
         try {
             const model = genAI.getGenerativeModel({ model: modelName })
-            const result = await model.generateContent(prompt)
+            
+            // Use rate limiting retry mechanism
+            const result = await retryWithBackoff(async () => {
+                return await model.generateContent(prompt)
+            })
+            
             console.log(`✅ Gemini responded using model: ${modelName}`)
             return result.response.text()
         } catch (err) {
             console.warn(`⚠️ Model ${modelName} failed: ${err.message}`)
             lastError = err
+            
+            // If it's a rate limit error, don't try other models
+            if (err.message?.includes('RATE_LIMIT_EXCEEDED') || err.status === 429) {
+                throw err
+            }
         }
     }
     throw lastError
@@ -365,6 +464,23 @@ Provide ONLY the question text, nothing else.`
 
     } catch (error) {
         console.error("Question generation error:", error.message)
+        
+        // Handle rate limiting specifically
+        if (error.message?.includes('RATE_LIMIT_EXCEEDED')) {
+            const waitTime = error.message.split(':')[1]
+            const waitTimeSeconds = Math.ceil(parseInt(waitTime) / 1000)
+            
+            return res.json({ 
+                success: false, 
+                message: 'AI service is temporarily busy. Please try again in a moment.',
+                rateLimitInfo: {
+                    isRateLimited: true,
+                    retryAfter: waitTimeSeconds,
+                    message: `Please wait ${waitTimeSeconds} seconds before trying again.`
+                }
+            })
+        }
+        
         res.json({ success: false, message: error.message || 'Error generating question. Please try again.' })
     }
 }
@@ -418,6 +534,23 @@ Do not include any other text or explanation outside the JSON.`
 
     } catch (error) {
         console.error("Answer evaluation error:", error.message)
+        
+        // Handle rate limiting specifically
+        if (error.message?.includes('RATE_LIMIT_EXCEEDED')) {
+            const waitTime = error.message.split(':')[1]
+            const waitTimeSeconds = Math.ceil(parseInt(waitTime) / 1000)
+            
+            return res.json({ 
+                success: false, 
+                message: 'AI service is temporarily busy. Please try again in a moment.',
+                rateLimitInfo: {
+                    isRateLimited: true,
+                    retryAfter: waitTimeSeconds,
+                    message: `Please wait ${waitTimeSeconds} seconds before trying again.`
+                }
+            })
+        }
+        
         res.json({ success: false, message: error.message || 'Error evaluating answer. Please try again.' })
     }
 }
@@ -657,6 +790,7 @@ export const enhanceResume = async (req, res) => {
         // Clean up temp file
         fs.unlinkSync(resumeFile.path)
 
+        const { retryWithBackoff } = await import('../utils/rateLimitHandler.js')
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
         const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
 
@@ -706,7 +840,11 @@ Rules:
 - Be specific and actionable, not generic
 - Focus on ATS keywords, action verbs, quantifiable achievements, formatting issues`
 
-        const result = await model.generateContent(prompt)
+        // Use rate limiting retry mechanism
+        const result = await retryWithBackoff(async () => {
+            return await model.generateContent(prompt)
+        })
+
         const responseText = result.response.text()
         const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
         const analysis = JSON.parse(cleanJson)
@@ -715,6 +853,23 @@ Rules:
 
     } catch (error) {
         console.error('Enhance resume error:', error)
+        
+        // Handle rate limiting specifically
+        if (error.message?.includes('RATE_LIMIT_EXCEEDED')) {
+            const waitTime = error.message.split(':')[1]
+            const waitTimeSeconds = Math.ceil(parseInt(waitTime) / 1000)
+            
+            return res.json({ 
+                success: false, 
+                message: 'AI analysis is temporarily busy. Please try again in a moment.',
+                rateLimitInfo: {
+                    isRateLimited: true,
+                    retryAfter: waitTimeSeconds,
+                    message: `Please wait ${waitTimeSeconds} seconds before trying again.`
+                }
+            })
+        }
+        
         res.json({ success: false, message: 'Error analyzing resume. Please try again.' })
     }
 }

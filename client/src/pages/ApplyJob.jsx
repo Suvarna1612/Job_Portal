@@ -11,6 +11,7 @@ import Footer from "../components/Footer";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useAuth } from "@clerk/clerk-react";
+import RateLimitNotification from "../components/RateLimitNotification";
 
 const ApplyJob = () => {
   const { id } = useParams();
@@ -22,6 +23,10 @@ const ApplyJob = () => {
   const [useDefaultResume, setUseDefaultResume] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
   const [learningSuggestions, setLearningSuggestions] = useState(null)
+  const [customAnswers, setCustomAnswers] = useState({})
+  const [showCustomQuestions, setShowCustomQuestions] = useState(false)
+  const [rateLimitInfo, setRateLimitInfo] = useState(null)
+  const [showRateLimitModal, setShowRateLimitModal] = useState(false)
   const navigate = useNavigate();
 
   const { jobs, backendUrl, userData, userApplications, fetchUserApplications } = useContext(AppContext);
@@ -43,6 +48,22 @@ const ApplyJob = () => {
     try {
       if(!userData){
         return toast.error("Please login to apply for this job");
+      }
+      
+      // If there are custom questions and they haven't been answered yet
+      if(JobData.customQuestions && JobData.customQuestions.length > 0 && !showCustomQuestions){
+        setShowCustomQuestions(true)
+        return;
+      }
+
+      // Validate custom question answers
+      if(JobData.customQuestions && JobData.customQuestions.length > 0){
+        for(let i = 0; i < JobData.customQuestions.length; i++){
+          const question = JobData.customQuestions[i]
+          if(question.required && (!customAnswers[i] || customAnswers[i].trim() === '')){
+            return toast.error(`Please answer: ${question.question}`)
+          }
+        }
       }
       
       // If resume options modal is not shown yet, show it first
@@ -82,8 +103,16 @@ const ApplyJob = () => {
       }
 
       toast.info("Analyzing resume...")
+      
+      // Prepare custom answers for submission
+      const formattedAnswers = JobData.customQuestions ? JobData.customQuestions.map((question, index) => ({
+        questionId: index.toString(),
+        question: question.question,
+        answer: customAnswers[index] || ''
+      })) : []
+
       const {data} = await axios.post(backendUrl+'/api/users/apply',
-        {jobId: JobData._id},
+        {jobId: JobData._id, customAnswers: formattedAnswers},
         {headers: {Authorization: `Bearer ${token}`}}
       )
 
@@ -93,11 +122,20 @@ const ApplyJob = () => {
         toast.success(data.message)
         fetchUserApplications()
         setShowResumeOptions(false)
+        setShowCustomQuestions(false)
         setSelectedResume(null)
         setUseDefaultResume(true)
+        setCustomAnswers({})
         setLearningSuggestions(null)
       }
       else{
+        // Check if it's a rate limit error
+        if(data.rateLimitInfo){
+          setRateLimitInfo(data.rateLimitInfo)
+          setShowRateLimitModal(true)
+          return
+        }
+        
         toast.error(data.message)
         // Show learning suggestions if available
         if(data.suggestions){
@@ -196,6 +234,84 @@ const ApplyJob = () => {
               </p>
             </div>
           </div>
+
+          {/* Custom Questions Section */}
+          {showCustomQuestions && JobData.customQuestions && JobData.customQuestions.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <svg className='w-5 h-5 text-blue-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' />
+                </svg>
+                Application Questions
+              </h3>
+              <p className="text-sm text-blue-700 mb-4">Please answer the following questions to complete your application:</p>
+              
+              <div className="space-y-4">
+                {JobData.customQuestions.map((question, index) => (
+                  <div key={index} className="bg-white border border-blue-200 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {question.question}
+                      {question.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    
+                    {question.type === 'text' && (
+                      <input
+                        type="text"
+                        value={customAnswers[index] || ''}
+                        onChange={(e) => setCustomAnswers({...customAnswers, [index]: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter your answer..."
+                        required={question.required}
+                      />
+                    )}
+                    
+                    {question.type === 'textarea' && (
+                      <textarea
+                        value={customAnswers[index] || ''}
+                        onChange={(e) => setCustomAnswers({...customAnswers, [index]: e.target.value})}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        placeholder="Enter your detailed answer..."
+                        required={question.required}
+                      />
+                    )}
+                    
+                    {question.type === 'select' && (
+                      <select
+                        value={customAnswers[index] || ''}
+                        onChange={(e) => setCustomAnswers({...customAnswers, [index]: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        required={question.required}
+                      >
+                        <option value="">Select an option...</option>
+                        {question.options.map((option, optionIndex) => (
+                          <option key={optionIndex} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={applyHandler}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"
+                >
+                  Continue Application
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCustomQuestions(false)
+                    setCustomAnswers({})
+                  }}
+                  className="border border-gray-300 px-6 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Resume Selection Modal */}
           {showResumeOptions && (
@@ -413,6 +529,23 @@ const ApplyJob = () => {
         </div>
       </div>
       <Footer />
+
+      {/* Rate Limit Notification Modal */}
+      {showRateLimitModal && (
+        <RateLimitNotification
+          rateLimitInfo={rateLimitInfo}
+          onRetry={() => {
+            setShowRateLimitModal(false)
+            setRateLimitInfo(null)
+            // Retry the application
+            applyHandler()
+          }}
+          onClose={() => {
+            setShowRateLimitModal(false)
+            setRateLimitInfo(null)
+          }}
+        />
+      )}
     </>
   ) : (
     <Loading />

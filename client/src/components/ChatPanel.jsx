@@ -51,6 +51,8 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
     const [sending, setSending] = useState(false)
     const [loading, setLoading] = useState(true)
     const [selectedFile, setSelectedFile] = useState(null)
+    const [showCustomText, setShowCustomText] = useState(false)
+    const [customText, setCustomText] = useState('')
     const fileInputRef = useRef(null)
     const bottomRef = useRef(null)
     const pollRef = useRef(null)
@@ -179,7 +181,7 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' />
                 </svg>
                 <span className='text-white text-sm font-semibold'>Application Chat</span>
-                <span className='ml-auto text-xs text-blue-200'>Auto-refreshes every 10s</span>
+                <span className='ml-auto text-xs text-blue-200'>Please be respectful and don't spam</span>
             </div>
 
             {/* Messages */}
@@ -272,17 +274,79 @@ const ChatPanel = ({ applicationId, role, senderId, backendUrl, authToken, compa
             )}
 
             {/* Quick Replies */}
-            <div className='px-3 py-2 border-t border-gray-100 bg-white flex gap-1.5 overflow-x-auto'>
-                {quickReplies.map((q, i) => (
+            <div className='px-3 py-2 border-t border-gray-100 bg-white'>
+                {/* Quick Reply Buttons */}
+                <div className='flex gap-1.5 overflow-x-auto'>
+                    {/* Custom Text Button - First */}
                     <button
-                        key={i}
-                        onClick={() => sendMessage(q.message, q.type)}
-                        disabled={sending}
-                        className='flex-shrink-0 text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap'
+                        onClick={() => setShowCustomText(true)}
+                        disabled={sending || showCustomText}
+                        className='flex-shrink-0 text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap font-medium'
                     >
-                        {q.label}
+                        ✏️ Custom Text
                     </button>
-                ))}
+                    
+                    {/* Predefined Quick Replies */}
+                    {quickReplies.map((q, i) => (
+                        <button
+                            key={i}
+                            onClick={() => sendMessage(q.message, q.type)}
+                            disabled={sending}
+                            className='flex-shrink-0 text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap'
+                        >
+                            {q.label}
+                        </button>
+                    ))}
+                </div>
+                
+                {/* Custom Text Input Area */}
+                {showCustomText && (
+                    <div className='mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200'>
+                        <div className='flex items-center justify-between mb-2'>
+                            <span className='text-xs font-medium text-gray-700'>Custom Message</span>
+                            <button
+                                onClick={() => {
+                                    setShowCustomText(false)
+                                    setCustomText('')
+                                }}
+                                className='text-gray-400 hover:text-gray-600 text-sm'
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <textarea
+                            value={customText}
+                            onChange={(e) => setCustomText(e.target.value)}
+                            placeholder='Type your custom message here...'
+                            className='w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none'
+                            rows={3}
+                        />
+                        <div className='flex gap-2 mt-2'>
+                            <button
+                                onClick={() => {
+                                    if (customText.trim()) {
+                                        sendMessage(customText, 'text')
+                                        setCustomText('')
+                                        setShowCustomText(false)
+                                    }
+                                }}
+                                disabled={sending || !customText.trim()}
+                                className='text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors'
+                            >
+                                {sending ? 'Sending...' : 'Send Message'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowCustomText(false)
+                                    setCustomText('')
+                                }}
+                                className='text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition-colors'
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Input */}

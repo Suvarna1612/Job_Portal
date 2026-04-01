@@ -28,6 +28,7 @@ import profile_upload_icon from './profile_upload_icon.svg'
 import person_tick_icon from './person_tick_icon.svg'
 import resume_download_icon from './resume_download_icon.svg'
 import delete_icon from './delete_icon.svg'
+import edit_icon from './edit_icon.svg'
 import email_icon from './email_icon.svg'
 import lock_icon from './lock_icon.svg'
 import samsung_logo from './samsung_logo.png'
@@ -64,6 +65,7 @@ export const assets = {
     resume_download_icon,
     profile_img,
     delete_icon,
+    edit_icon,
     profile_upload_icon,
     email_icon,
     lock_icon,

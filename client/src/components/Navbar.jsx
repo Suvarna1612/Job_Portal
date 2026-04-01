@@ -17,13 +17,13 @@ const Navbar = () => {
             {
               user
               ?<div className='flex items-center gap-3'>
-                <Link to={'/applications'}>Applied Jobs</Link>
+                <Link to={'/applications'} className='text-gray-800 hover:text-blue-600 transition-colors'>Applied Jobs</Link>
                 <p>|</p>
-                <Link to={'/saved-jobs'}>Saved Jobs</Link>
+                <Link to={'/saved-jobs'} className='text-gray-800 hover:text-blue-600 transition-colors'>Saved Jobs</Link>
                 <p>|</p>
-                <Link to={'/followed-companies'}>Company Alerts</Link>
+                <Link to={'/followed-companies'} className='text-gray-800 hover:text-blue-600 transition-colors'>Company Alerts</Link>
                 <p>|</p>
-                <Link to={'/enhance-resume'} className='text-blue-600 font-medium'>Enhance Resume</Link>
+                <Link to={'/enhance-resume'} className='text-gray-800 hover:text-blue-600 transition-colors'>Enhance Resume</Link>
                 <p>|</p>
                 <p className='max-sm:hidden'>Hi, {user.firstName+" "+user.lastName}</p>
                 <UserButton>

@@ -42,7 +42,7 @@ const JobListing = () => {
     useEffect(()=>{
         const matchesCategory = job => selectedCategories.length === 0 || selectedCategories.includes(job.category)
         
-        const matchesLocation = job => selectedLocations.length === 0 || selectedLocations.includes(job.location)
+        const matchesLocation = job => selectedLocations.length === 0 || selectedLocations.some(location => job.location.includes(location))
         
         const matchesCompany = job => selectedCompanies.length === 0 || selectedCompanies.includes(job.companyId?.name)
         

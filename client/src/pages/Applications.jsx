@@ -31,91 +31,112 @@ const Applications = () => {
       <Navbar />
       <div className='container px-4 min-h-[65vh] 2xl:px-20 mx-auto my-10'>
         <h2 className='text-xl font-semibold mb-4'>Applied Jobs</h2>
-        <div className='overflow-x-auto'>
-          <table className='min-w-full bg-white border rounded-lg'>
-            <thead>
-              <tr>
-                <th className='py-3 px-4 border-b text-left'>Company</th>
-                <th className='py-3 px-4 border-b text-left'>Job Title</th>
-                <th className='py-3 px-4 border-b text-left max-sm:hidden'>Location</th>
-                <th className='py-3 px-4 border-b text-left max-sm:hidden'>Date</th>
-                <th className='py-3 px-4 border-b text-left'>Status</th>
-                <th className='py-3 px-4 border-b text-left'>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {userApplications.map((job, index) => (
-                <React.Fragment key={index}>
+        <div className='flex gap-6'>
+          {/* Main Content */}
+          <div className={`transition-all duration-300 ${openChatId ? 'w-2/3' : 'w-full'}`}>
+            <div className='overflow-x-auto'>
+              <table className='min-w-full bg-white border rounded-lg'>
+                <thead>
                   <tr>
-                    <td className='py-3 px-4 flex items-center gap-2 border-b'>
-                      <img className='w-8 h-8' src={job.companyId.image} alt='' />
-                      {job.companyId.name}
-                    </td>
-                    <td className='px-4 py-2 border-b'>{job.jobId.title}</td>
-                    <td className='px-4 py-2 border-b max-sm:hidden'>{job.jobId.location}</td>
-                    <td className='px-4 py-2 border-b max-sm:hidden'>{moment(job.date).format('ll')}</td>
-                    <td className='px-4 py-2 border-b'>
-                      <span className={`${
-                        job.status === 'Accepted' ? 'bg-green-100 text-green-700' :
-                        job.status === 'Rejected' ? 'bg-red-100 text-red-600' :
-                        'bg-blue-100 text-blue-700'
-                      } px-3 py-1 rounded-full text-xs font-semibold`}>
-                        {job.status}
-                      </span>
-                    </td>
-                    <td className='px-4 py-2 border-b'>
-                      <div className='flex items-center gap-2'>
-                        {job.status === 'Accepted' && (
-                          <>
-                            <button
-                              onClick={() => navigate(`/prepare-interview/${job._id}`)}
-                              className='bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 text-xs font-medium'
-                            >
-                              Prepare
-                            </button>
-                            <button
-                              onClick={() => toggleChat(job._id)}
-                              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                openChatId === job._id
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-600'
-                              }`}
-                            >
-                              <svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' />
-                              </svg>
-                              Chat
-                            </button>
-                          </>
-                        )}
-                        {job.status === 'Pending' && (
-                          <span className='text-gray-400 text-xs'>Awaiting Response</span>
-                        )}
-                        {job.status === 'Rejected' && (
-                          <span className='text-gray-400 text-xs'>Not Available</span>
-                        )}
-                      </div>
-                    </td>
+                    <th className='py-3 px-4 border-b text-left'>Company</th>
+                    <th className='py-3 px-4 border-b text-left'>Job Title</th>
+                    <th className='py-3 px-4 border-b text-left max-sm:hidden'>Location</th>
+                    <th className='py-3 px-4 border-b text-left max-sm:hidden'>Date</th>
+                    <th className='py-3 px-4 border-b text-left'>Status</th>
+                    <th className='py-3 px-4 border-b text-left'>Action</th>
                   </tr>
-                  {/* Chat Panel Row */}
-                  {openChatId === job._id && (
-                    <tr>
-                      <td colSpan={6} className='px-4 py-3 bg-gray-50 border-b'>
-                        <ChatPanel
-                          applicationId={job._id}
-                          role='candidate'
-                          senderId={user?.id}
-                          backendUrl={backendUrl}
-                          authToken={authToken}
-                          getToken={getToken}
-                        />
+                </thead>
+                <tbody>
+                  {userApplications.map((job, index) => (
+                    <tr key={index}>
+                      <td className='py-3 px-4 border-b'>
+                        <div className='flex items-center gap-2'>
+                          <img className='w-8 h-8 rounded object-cover flex-shrink-0' src={job.companyId.image} alt='' />
+                          <span>{job.companyId.name}</span>
+                        </div>
+                      </td>
+                      <td className='py-3 px-4 border-b'>{job.jobId.title}</td>
+                      <td className='py-3 px-4 border-b max-sm:hidden'>{job.jobId.location}</td>
+                      <td className='py-3 px-4 border-b max-sm:hidden'>{moment(job.date).format('ll')}</td>
+                      <td className='py-3 px-4 border-b'>
+                        <span className={`${
+                          job.status === 'Accepted' ? 'bg-green-100 text-green-700' :
+                          job.status === 'Rejected' ? 'bg-red-100 text-red-600' :
+                          'bg-blue-100 text-blue-700'
+                        } px-3 py-1 rounded-full text-xs font-semibold`}>
+                          {job.status}
+                        </span>
+                      </td>
+                      <td className='py-3 px-4 border-b'>
+                        <div className='flex items-center gap-2'>
+                          {job.status === 'Accepted' && (
+                            <>
+                              <button
+                                onClick={() => navigate(`/prepare-interview/${job._id}`)}
+                                className='bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 text-xs font-medium'
+                              >
+                                Prepare
+                              </button>
+                              <button
+                                onClick={() => toggleChat(job._id)}
+                                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  openChatId === job._id
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-600'
+                                }`}
+                              >
+                                <svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' />
+                                </svg>
+                                Chat
+                              </button>
+                            </>
+                          )}
+                          {job.status === 'Pending' && (
+                            <span className='text-gray-400 text-xs'>Awaiting Response</span>
+                          )}
+                          {job.status === 'Rejected' && (
+                            <span className='text-gray-400 text-xs'>Not Available</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Side Chat Panel */}
+          {openChatId && (
+            <div className='w-1/3 min-w-[400px]'>
+              <div className='sticky top-4'>
+                <div className='bg-white border rounded-lg shadow-sm'>
+                  <div className='flex items-center justify-between p-4 border-b'>
+                    <h3 className='font-semibold text-gray-800'>Application Chat</h3>
+                    <button
+                      onClick={() => setOpenChatId(null)}
+                      className='text-gray-400 hover:text-gray-600 p-1'
+                    >
+                      <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className='p-4'>
+                    <ChatPanel
+                      applicationId={openChatId}
+                      role='candidate'
+                      senderId={user?.id}
+                      backendUrl={backendUrl}
+                      authToken={authToken}
+                      getToken={getToken}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <Footer />

@@ -5,10 +5,17 @@ import { AppContext } from '../context/AppContext'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import Loading from '../components/Loading'
+import EditJobModal from '../components/EditJobModal'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { assets } from '../assets/assets'
 
 const ManageJobs = () => {
   const navigate = useNavigate()
   const [jobs, setJobs] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [selectedJob, setSelectedJob] = useState(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [jobToDelete, setJobToDelete] = useState(null)
   const { backendUrl, companyToken } = useContext(AppContext)
 
   const fetchCompanyJobs = async () => {
@@ -41,6 +48,57 @@ const ManageJobs = () => {
       }
     } catch (error) {
       toast.error(error.message)
+    }
+  }
+
+  const handleEditJob = (job) => {
+    setSelectedJob(job)
+    setEditModalOpen(true)
+  }
+
+  const handleSaveJob = async (jobId, formData) => {
+    try {
+      const { data } = await axios.post(
+        backendUrl + '/api/company/edit-job',
+        { id: jobId, ...formData },
+        { headers: { token: companyToken } }
+      )
+      if (data.success) {
+        toast.success(data.message)
+        setEditModalOpen(false)
+        setSelectedJob(null)
+        fetchCompanyJobs()
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const handleDeleteJob = async (jobId, jobTitle) => {
+    setJobToDelete({ id: jobId, title: jobTitle })
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteJob = async () => {
+    try {
+      const { data } = await axios.post(
+        backendUrl + '/api/company/delete-job',
+        { id: jobToDelete.id },
+        { headers: { token: companyToken } }
+      )
+      if (data.success) {
+        toast.success(data.message)
+        fetchCompanyJobs()
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setDeleteDialogOpen(false)
+      setJobToDelete(null)
     }
   }
 
@@ -120,6 +178,7 @@ const ManageJobs = () => {
                 <th className='py-3.5 px-5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide'>Applicants</th>
                 <th className='py-3.5 px-5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide max-sm:hidden'>Status</th>
                 <th className='py-3.5 px-5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide'>Visible</th>
+                <th className='py-3.5 px-5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide'>Actions</th>
               </tr>
             </thead>
             <tbody className='divide-y divide-gray-50'>
@@ -187,6 +246,24 @@ const ManageJobs = () => {
                         } peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all`}></div>
                       </label>
                     </td>
+                    <td className='py-4 px-5 text-center'>
+                      <div className='flex items-center justify-center gap-2'>
+                        <button
+                          onClick={() => handleEditJob(job)}
+                          className='p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors'
+                          title='Edit Job'
+                        >
+                          <img src={assets.edit_icon} alt="Edit" className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteJob(job._id, job.title)}
+                          className='p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors'
+                          title='Delete Job'
+                        >
+                          <img src={assets.delete_icon} alt="Delete" className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -194,6 +271,31 @@ const ManageJobs = () => {
           </table>
         </div>
       </div>
+
+      {/* Edit Job Modal */}
+      <EditJobModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false)
+          setSelectedJob(null)
+        }}
+        job={selectedJob}
+        onSave={handleSaveJob}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false)
+          setJobToDelete(null)
+        }}
+        onConfirm={confirmDeleteJob}
+        title="Delete Job"
+        message={`Are you sure you want to delete "${jobToDelete?.title}"? This action cannot be undone and will also delete all applications for this job.`}
+        confirmText="Delete Job"
+        type="danger"
+      />
     </div>
   )
 }
