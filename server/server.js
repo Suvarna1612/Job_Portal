@@ -74,7 +74,7 @@ await connectCloudinary();
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://job-portal-1-client.vercel.app'
+    'https://job-portal-three-umber.vercel.app'
   ],
   credentials: true
 }));
